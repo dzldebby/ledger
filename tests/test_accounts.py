@@ -1,10 +1,4 @@
-from fastapi.testclient import TestClient
-from app.main import app
-
-client = TestClient(app)
-
-
-def test_create_account_returns_201():
+def test_create_account_returns_201(client):
     response = client.post("/accounts", json={
         "owner_id": "user-123",
         "account_type": "customer"
@@ -12,7 +6,7 @@ def test_create_account_returns_201():
     assert response.status_code == 201
 
 
-def test_create_account_returns_expected_fields():
+def test_create_account_returns_expected_fields(client):
     response = client.post("/accounts", json={
         "owner_id": "user-456",
         "account_type": "customer"
@@ -24,14 +18,14 @@ def test_create_account_returns_expected_fields():
     assert "account_id" in data
 
 
-def test_create_account_missing_owner_id_returns_422():
+def test_create_account_missing_owner_id_returns_422(client):
     response = client.post("/accounts", json={
         "account_type": "customer"
     })
     assert response.status_code == 422
 
 
-def test_create_account_missing_account_type_returns_422():
+def test_create_account_missing_account_type_returns_422(client):
     response = client.post("/accounts", json={
         "owner_id": "user-789"
     })
