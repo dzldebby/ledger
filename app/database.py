@@ -18,4 +18,5 @@ async def close_pool() -> None:
 
 
 async def get_conn() -> asyncpg.Connection:
-    return await pool.acquire()
+    async with pool.acquire() as conn:
+        yield conn
