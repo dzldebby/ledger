@@ -2,8 +2,6 @@ import hashlib
 import asyncpg
 from app.schemas.transactions import DepositCreate, TransferCreate, ReversalCreate, TransactionResponse, PostingResponse
 
-DEFAULT_CLIENT_SCOPE = "default"
-
 
 class SameAccountError(Exception):
     pass
