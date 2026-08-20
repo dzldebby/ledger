@@ -8,7 +8,12 @@ def test_health_does_not_require_auth(client):
 
 
 def test_missing_api_key_returns_422(client):
-    response = client.get("/accounts", headers={"X-API-Key": None})
+    saved = client.headers["X-API-Key"]
+    del client.headers["X-API-Key"]
+    try:
+        response = client.get("/accounts")
+    finally:
+        client.headers["X-API-Key"] = saved
     assert response.status_code == 422
 
 
