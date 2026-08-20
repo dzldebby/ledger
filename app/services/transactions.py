@@ -299,5 +299,5 @@ async def _execute_reversal(conn: asyncpg.Connection, original_transaction_id: s
     )
 
 
-async def create_reversal(conn: asyncpg.Connection, data: ReversalCreate, idempotency_key: str) -> TransactionResponse:
-    return await _run_idempotent(conn, idempotency_key, "reversal", data, lambda c: _execute_reversal(c, data.transaction_id))
+async def create_reversal(conn: asyncpg.Connection, data: ReversalCreate, client_id: str, idempotency_key: str) -> TransactionResponse:
+    return await _run_idempotent(conn, client_id, idempotency_key, "reversal", data, lambda c: _execute_reversal(c, data.transaction_id))
