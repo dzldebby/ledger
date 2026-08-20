@@ -11,3 +11,8 @@ class AccountResponse(BaseModel):
     owner_id: str
     account_type: str
     status: str
+
+
+class BalanceResponse(BaseModel):
+    account_id: str
+    balance_minor: int

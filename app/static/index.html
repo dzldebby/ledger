@@ -1,0 +1,253 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Ledger Test UI</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
+  h1 { font-size: 1.4rem; }
+  h2 { font-size: 1.1rem; margin-top: 2rem; border-bottom: 1px solid #ddd; padding-bottom: 0.3rem; }
+  .card { background: #f7f7f8; border: 1px solid #e2e2e2; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+  label { display: block; font-size: 0.85rem; margin-top: 0.6rem; color: #555; }
+  input, select { width: 100%; padding: 0.4rem; margin-top: 0.2rem; box-sizing: border-box; }
+  button { margin-top: 0.8rem; padding: 0.5rem 1rem; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; }
+  button:hover { background: #1d4ed8; }
+  .accounts-list { font-size: 0.85rem; }
+  .accounts-list div { padding: 0.3rem 0; border-bottom: 1px solid #eee; }
+  .tag { display: inline-block; font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 4px; margin-right: 0.4rem; }
+  .tag.cash { background: #fde68a; }
+  .tag.customer { background: #bfdbfe; }
+  #log { background: #111; color: #0f0; font-family: monospace; font-size: 0.8rem; padding: 1rem; border-radius: 8px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; }
+  .err { color: #b91c1c; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<h1>Ledger Test UI</h1>
+<p style="color:#666; font-size:0.9rem;">Manual testing tool for the Ledger API — hits the live backend on this server.</p>
+
+<h2>1. Bank Setup (one-time)</h2>
+<div class="card">
+  <p style="font-size:0.85rem; color:#555; margin-top:0;">The bank has exactly <strong>one</strong> cash account — it represents the bank's total physical funds, not any individual customer. Create it once, before any deposits.</p>
+  <div id="cash-setup-content">
+    <button onclick="createCashAccount()">Create Bank Cash Account</button>
+  </div>
+</div>
+
+<h2>2. Create Customer Account</h2>
+<div class="card">
+  <label>Owner ID</label>
+  <input id="owner_id" placeholder="e.g. test1, alice, bob">
+  <button onclick="createCustomerAccount()">Create Customer Account</button>
+</div>
+
+<h2>Created Accounts (this session)</h2>
+<div class="card accounts-list" id="accounts-list">
+  <em>No accounts created yet.</em>
+</div>
+
+<h2>Deposit</h2>
+<div class="card">
+  <label>Customer Account</label>
+  <select id="deposit_account_id"></select>
+  <label>Cash Account</label>
+  <select id="deposit_cash_account_id"></select>
+  <label>Amount (minor units, e.g. cents)</label>
+  <input id="deposit_amount" type="number" value="1000">
+  <button onclick="deposit()">Deposit</button>
+</div>
+
+<h2>Transfer</h2>
+<div class="card">
+  <label>From Account</label>
+  <select id="transfer_from_account_id"></select>
+  <label>To Account</label>
+  <select id="transfer_to_account_id"></select>
+  <label>Amount (minor units, e.g. cents)</label>
+  <input id="transfer_amount" type="number" value="1000">
+  <button onclick="transfer()">Transfer</button>
+</div>
+
+<h2>Reverse Transaction</h2>
+<div class="card">
+  <label>Transaction ID (copy from the Request Log below after a deposit/transfer)</label>
+  <input id="reversal_transaction_id" placeholder="e.g. a1b2c3d4-...">
+  <button onclick="reverseTransaction()">Reverse</button>
+</div>
+
+<h2>Check Balance</h2>
+<div class="card">
+  <label>Account</label>
+  <select id="balance_account_id"></select>
+  <button onclick="checkBalance()">Get Balance</button>
+</div>
+
+<h2>Request Log</h2>
+<div id="log">Waiting for requests...</div>
+
+<script>
+const accounts = [];
+
+function log(label, data, isError = false) {
+  const el = document.getElementById('log');
+  const cls = isError ? 'err' : '';
+  const line = `[${new Date().toLocaleTimeString()}] ${label}\n${JSON.stringify(data, null, 2)}\n\n`;
+  el.innerHTML = `<span class="${cls}">${line}</span>` + el.innerHTML;
+}
+
+// null means "show all account types"; otherwise only accounts of that type are listed
+const SELECT_TYPE_FILTERS = {
+  deposit_account_id: 'customer',
+  deposit_cash_account_id: 'cash',
+  transfer_from_account_id: 'customer',
+  transfer_to_account_id: 'customer',
+  balance_account_id: null,
+};
+
+function refreshAccountSelects() {
+  Object.entries(SELECT_TYPE_FILTERS).forEach(([id, typeFilter]) => {
+    const sel = document.getElementById(id);
+    const filtered = typeFilter ? accounts.filter(a => a.account_type === typeFilter) : accounts;
+    sel.innerHTML = filtered.length
+      ? filtered.map(a =>
+          `<option value="${a.account_id}">${a.account_type} — ${a.owner_id} (${a.account_id.slice(0,8)})</option>`
+        ).join('')
+      : `<option value="">(no ${typeFilter || ''} accounts yet)</option>`;
+  });
+}
+
+function renderAccountsList() {
+  const el = document.getElementById('accounts-list');
+  if (accounts.length === 0) {
+    el.innerHTML = '<em>No accounts created yet.</em>';
+    return;
+  }
+  el.innerHTML = accounts.map(a =>
+    `<div><span class="tag ${a.account_type}">${a.account_type}</span>${a.owner_id} — <code>${a.account_id}</code></div>`
+  ).join('');
+}
+
+function renderCashSetupCard() {
+  const cashAccount = accounts.find(a => a.account_type === 'cash');
+  const el = document.getElementById('cash-setup-content');
+  el.innerHTML = cashAccount
+    ? `<em>&#10003; Cash account already exists — <code>${cashAccount.account_id}</code></em>`
+    : `<button onclick="createCashAccount()">Create Bank Cash Account</button>`;
+}
+
+async function createAccountRequest(owner_id, account_type) {
+  try {
+    const res = await fetch('/accounts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ owner_id, account_type })
+    });
+    const data = await res.json();
+    if (!res.ok) { log(`POST /accounts (${account_type}) FAILED`, data, true); return; }
+    accounts.push(data);
+    renderAccountsList();
+    refreshAccountSelects();
+    renderCashSetupCard();
+    log('POST /accounts', data);
+  } catch (e) {
+    log('POST /accounts ERROR', String(e), true);
+  }
+}
+
+async function createCashAccount() {
+  await createAccountRequest('system', 'cash');
+}
+
+async function createCustomerAccount() {
+  const owner_id = document.getElementById('owner_id').value;
+  if (!owner_id) { log('Create Customer Account', 'Enter an owner ID first.', true); return; }
+  await createAccountRequest(owner_id, 'customer');
+}
+
+async function deposit() {
+  const account_id = document.getElementById('deposit_account_id').value;
+  const cash_account_id = document.getElementById('deposit_cash_account_id').value;
+  const amount_minor = parseInt(document.getElementById('deposit_amount').value, 10);
+  if (!account_id || !cash_account_id) { log('Deposit', 'Create a customer account and a cash account first.', true); return; }
+  try {
+    const res = await fetch('/transactions/deposit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() },
+      body: JSON.stringify({ account_id, cash_account_id, amount_minor })
+    });
+    const data = await res.json();
+    if (!res.ok) { log('POST /transactions/deposit FAILED', data, true); return; }
+    log('POST /transactions/deposit', data);
+  } catch (e) {
+    log('POST /transactions/deposit ERROR', String(e), true);
+  }
+}
+
+async function transfer() {
+  const from_account_id = document.getElementById('transfer_from_account_id').value;
+  const to_account_id = document.getElementById('transfer_to_account_id').value;
+  const amount_minor = parseInt(document.getElementById('transfer_amount').value, 10);
+  if (!from_account_id || !to_account_id) { log('Transfer', 'Create at least two accounts first.', true); return; }
+  try {
+    const res = await fetch('/transactions/transfer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() },
+      body: JSON.stringify({ from_account_id, to_account_id, amount_minor })
+    });
+    const data = await res.json();
+    if (!res.ok) { log('POST /transactions/transfer FAILED', data, true); return; }
+    log('POST /transactions/transfer', data);
+  } catch (e) {
+    log('POST /transactions/transfer ERROR', String(e), true);
+  }
+}
+
+async function reverseTransaction() {
+  const transaction_id = document.getElementById('reversal_transaction_id').value.trim();
+  if (!transaction_id) { log('Reverse', 'Enter a transaction ID first.', true); return; }
+  try {
+    const res = await fetch(`/transactions/${transaction_id}/reverse`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': crypto.randomUUID() }
+    });
+    const data = await res.json();
+    if (!res.ok) { log('POST /transactions/{id}/reverse FAILED', data, true); return; }
+    log('POST /transactions/{id}/reverse', data);
+  } catch (e) {
+    log('POST /transactions/{id}/reverse ERROR', String(e), true);
+  }
+}
+
+async function checkBalance() {
+  const account_id = document.getElementById('balance_account_id').value;
+  if (!account_id) { log('Balance', 'Create an account first.', true); return; }
+  try {
+    const res = await fetch(`/accounts/${account_id}/balance`);
+    const data = await res.json();
+    if (!res.ok) { log('GET /accounts/{id}/balance FAILED', data, true); return; }
+    log('GET /accounts/{id}/balance', data);
+  } catch (e) {
+    log('GET /accounts/{id}/balance ERROR', String(e), true);
+  }
+}
+
+async function loadExistingAccounts() {
+  try {
+    const res = await fetch('/accounts');
+    const data = await res.json();
+    if (!res.ok) { log('GET /accounts FAILED', data, true); return; }
+    accounts.push(...data);
+    renderAccountsList();
+    refreshAccountSelects();
+    renderCashSetupCard();
+    log(`GET /accounts (loaded ${data.length} existing accounts)`, data);
+  } catch (e) {
+    log('GET /accounts ERROR', String(e), true);
+  }
+}
+
+loadExistingAccounts();
+</script>
+
+</body>
+</html>
