@@ -144,8 +144,8 @@ async def _execute_deposit(conn: asyncpg.Connection, data: DepositCreate) -> Tra
     )
 
 
-async def create_deposit(conn: asyncpg.Connection, data: DepositCreate, idempotency_key: str) -> TransactionResponse:
-    return await _run_idempotent(conn, idempotency_key, "deposit", data, lambda c: _execute_deposit(c, data))
+async def create_deposit(conn: asyncpg.Connection, data: DepositCreate, client_id: str, idempotency_key: str) -> TransactionResponse:
+    return await _run_idempotent(conn, client_id, idempotency_key, "deposit", data, lambda c: _execute_deposit(c, data))
 
 
 async def _execute_transfer(conn: asyncpg.Connection, data: TransferCreate) -> TransactionResponse:
@@ -208,8 +208,8 @@ async def _execute_transfer(conn: asyncpg.Connection, data: TransferCreate) -> T
     )
 
 
-async def create_transfer(conn: asyncpg.Connection, data: TransferCreate, idempotency_key: str) -> TransactionResponse:
-    return await _run_idempotent(conn, idempotency_key, "transfer", data, lambda c: _execute_transfer(c, data))
+async def create_transfer(conn: asyncpg.Connection, data: TransferCreate, client_id: str, idempotency_key: str) -> TransactionResponse:
+    return await _run_idempotent(conn, client_id, idempotency_key, "transfer", data, lambda c: _execute_transfer(c, data))
 
 
 def _original_delta(transaction_type: str, side: str, amount: int) -> int:
