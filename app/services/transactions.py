@@ -58,7 +58,7 @@ async def _load_transaction_response(conn: asyncpg.Connection, transaction_id) -
     )
 
 
-async def _run_idempotent(conn: asyncpg.Connection, idempotency_key: str, operation: str, data, execute_fn) -> TransactionResponse:
+async def _run_idempotent(conn: asyncpg.Connection, client_scope: str, idempotency_key: str, operation: str, data, execute_fn) -> TransactionResponse:
     request_hash = _compute_request_hash(operation, data)
 
     async with conn.transaction():
@@ -66,7 +66,7 @@ async def _run_idempotent(conn: asyncpg.Connection, idempotency_key: str, operat
             SELECT transaction_id, request_hash FROM idempotency_records
             WHERE client_scope = $1 AND idempotency_key = $2
             FOR UPDATE
-        """, DEFAULT_CLIENT_SCOPE, idempotency_key)
+        """, client_scope, idempotency_key)
 
         if existing:
             if existing["request_hash"] != request_hash:
@@ -77,7 +77,7 @@ async def _run_idempotent(conn: asyncpg.Connection, idempotency_key: str, operat
             await conn.execute("""
                 INSERT INTO idempotency_records (client_scope, idempotency_key, request_hash, state)
                 VALUES ($1, $2, $3, 'processing')
-            """, DEFAULT_CLIENT_SCOPE, idempotency_key, request_hash)
+            """, client_scope, idempotency_key, request_hash)
         except asyncpg.exceptions.UniqueViolationError:
             raise IdempotencyKeyReuseError()
 
@@ -86,7 +86,7 @@ async def _run_idempotent(conn: asyncpg.Connection, idempotency_key: str, operat
         await conn.execute("""
             UPDATE idempotency_records SET state = 'complete', transaction_id = $1
             WHERE client_scope = $2 AND idempotency_key = $3
-        """, response.transaction_id, DEFAULT_CLIENT_SCOPE, idempotency_key)
+        """, response.transaction_id, client_scope, idempotency_key)
 
     return response
 
