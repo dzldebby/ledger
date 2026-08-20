@@ -26,6 +26,15 @@
 <h1>Ledger Test UI</h1>
 <p style="color:#666; font-size:0.9rem;">Manual testing tool for the Ledger API — hits the live backend on this server.</p>
 
+<h2>0. API Key</h2>
+<div class="card">
+  <p style="font-size:0.85rem; color:#555; margin-top:0;">Every request requires a valid API key (<code>X-API-Key</code> header). Provision one from your terminal with <code>python scripts/create_client.py &lt;client_id&gt;</code>, then paste it here — it's saved in this browser only.</p>
+  <label>API Key</label>
+  <input id="api_key_input" placeholder="paste your API key here">
+  <button onclick="saveApiKey()">Save</button>
+  <p id="api-key-status" style="font-size:0.8rem; margin-top:0.5rem;"></p>
+</div>
+
 <h2>1. Bank Setup (one-time)</h2>
 <div class="card">
   <p style="font-size:0.85rem; color:#555; margin-top:0;">The bank has exactly <strong>one</strong> cash account — it represents the bank's total physical funds, not any individual customer. Create it once, before any deposits.</p>
