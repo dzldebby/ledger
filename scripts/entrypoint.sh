@@ -1,6 +1,6 @@
 #!/bin/sh
 set -e
 
-python -m alembic upgrade head
+python scripts/migrate_with_lock.py
 
 exec "$@"
