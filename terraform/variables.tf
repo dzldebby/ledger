@@ -13,7 +13,7 @@ variable "db_bundle_id" {
 variable "container_power" {
   description = "Lightsail container service power (per-node pricing tier)"
   type        = string
-  default     = "nano-1"
+  default     = "nano"
 }
 
 variable "container_scale" {
