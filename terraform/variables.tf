@@ -17,9 +17,9 @@ variable "container_power" {
 }
 
 variable "container_scale" {
-  description = "Number of container nodes (replicas) - satisfies HLD's 'two stateless instances'"
+  description = "Number of container nodes (replicas). HLD calls for 2 (redundant, stateless); running 1 here to cut cost for a demo/learning deployment - bump to 2 with a single `terraform apply` when actually needed."
   type        = number
-  default     = 2
+  default     = 1
 }
 
 variable "github_repo" {
