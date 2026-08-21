@@ -1,0 +1,15 @@
+.git/
+.github/
+.claude/
+.pytest_cache/
+.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+.env
+.aws
+tests/
+docker-compose.yml
+high level design.jpg
+*.md
+terraform/
