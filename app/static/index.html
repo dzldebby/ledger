@@ -96,6 +96,30 @@
 
 <script>
 const accounts = [];
+const API_KEY_STORAGE_KEY = 'ledger_ui_api_key';
+
+function getApiKey() {
+  return localStorage.getItem(API_KEY_STORAGE_KEY) || '';
+}
+
+function apiKeyHeaders() {
+  return { 'X-API-Key': getApiKey() };
+}
+
+function updateApiKeyStatus() {
+  const status = document.getElementById('api-key-status');
+  const key = getApiKey();
+  status.textContent = key ? `Using key ending in ...${key.slice(-6)}` : 'No API key set — requests will fail with 422/401.';
+  status.style.color = key ? '#166534' : '#b91c1c';
+}
+
+function saveApiKey() {
+  const key = document.getElementById('api_key_input').value.trim();
+  if (!key) { log('API Key', 'Enter a key first.', true); return; }
+  localStorage.setItem(API_KEY_STORAGE_KEY, key);
+  updateApiKeyStatus();
+  loadExistingAccounts();
+}
 
 function log(label, data, isError = false) {
   const el = document.getElementById('log');
@@ -148,7 +172,7 @@ async function createAccountRequest(owner_id, account_type) {
   try {
     const res = await fetch('/accounts', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...apiKeyHeaders() },
       body: JSON.stringify({ owner_id, account_type })
     });
     const data = await res.json();
@@ -181,7 +205,7 @@ async function deposit() {
   try {
     const res = await fetch('/transactions/deposit', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() },
+      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID(), ...apiKeyHeaders() },
       body: JSON.stringify({ account_id, cash_account_id, amount_minor })
     });
     const data = await res.json();
@@ -200,7 +224,7 @@ async function transfer() {
   try {
     const res = await fetch('/transactions/transfer', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() },
+      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID(), ...apiKeyHeaders() },
       body: JSON.stringify({ from_account_id, to_account_id, amount_minor })
     });
     const data = await res.json();
@@ -217,7 +241,7 @@ async function reverseTransaction() {
   try {
     const res = await fetch(`/transactions/${transaction_id}/reverse`, {
       method: 'POST',
-      headers: { 'Idempotency-Key': crypto.randomUUID() }
+      headers: { 'Idempotency-Key': crypto.randomUUID(), ...apiKeyHeaders() }
     });
     const data = await res.json();
     if (!res.ok) { log('POST /transactions/{id}/reverse FAILED', data, true); return; }
@@ -231,7 +255,7 @@ async function checkBalance() {
   const account_id = document.getElementById('balance_account_id').value;
   if (!account_id) { log('Balance', 'Create an account first.', true); return; }
   try {
-    const res = await fetch(`/accounts/${account_id}/balance`);
+    const res = await fetch(`/accounts/${account_id}/balance`, { headers: apiKeyHeaders() });
     const data = await res.json();
     if (!res.ok) { log('GET /accounts/{id}/balance FAILED', data, true); return; }
     log('GET /accounts/{id}/balance', data);
@@ -241,8 +265,10 @@ async function checkBalance() {
 }
 
 async function loadExistingAccounts() {
+  if (!getApiKey()) { return; }
+  accounts.length = 0;
   try {
-    const res = await fetch('/accounts');
+    const res = await fetch('/accounts', { headers: apiKeyHeaders() });
     const data = await res.json();
     if (!res.ok) { log('GET /accounts FAILED', data, true); return; }
     accounts.push(...data);
@@ -255,6 +281,8 @@ async function loadExistingAccounts() {
   }
 }
 
+document.getElementById('api_key_input').value = getApiKey();
+updateApiKeyStatus();
 loadExistingAccounts();
 </script>
 
