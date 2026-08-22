@@ -19,9 +19,16 @@ CLIENT_ID="${1:-demo}"
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 
-# The AWS CLI on Windows is a native binary and cannot read a POSIX path like
-# /tmp/tmp.XXXX that Git Bash's mktemp returns, so hand it a "C:/..." path.
-# cygpath is absent on Linux/macOS, where the path is already usable as-is.
+# Git Bash's mktemp returns a POSIX path (/tmp/tmp.XXXX), but python and the
+# AWS CLI here are native Windows binaries that cannot resolve it. Shell
+# builtins use $WORK; anything handed to a Windows binary uses $WORK_WIN.
+# cygpath is absent on Linux/macOS, where the two are simply the same.
+if command -v cygpath >/dev/null 2>&1; then
+  WORK_WIN=$(cygpath -m "$WORK")
+else
+  WORK_WIN="$WORK"
+fi
+
 json_url() {
   if command -v cygpath >/dev/null 2>&1; then
     echo "file://$(cygpath -m "$1")"
