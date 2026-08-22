@@ -21,6 +21,34 @@ Terraform in `terraform/`.
 State lives in the S3 bucket created by `terraform/bootstrap/`, which is a
 separate stack and is *not* destroyed between sessions.
 
+## How code reaches production
+
+Merging to `main` deploys automatically. No manual step is required.
+
+```
+push to main -> CI (ci.yml)  -> tests against a Postgres service container
+                     |
+                     v  on success only
+                CD (cd.yml)  -> assume ledger-cd via OIDC
+                             -> scripts/deploy.sh (build, push, deploy)
+                             -> smoke test /health, fail the job on non-200
+```
+
+`cd.yml` is triggered by `workflow_run` on CI completion rather than by `push`,
+so a failing test suite can never deploy. It checks out
+`github.event.workflow_run.head_sha` — `workflow_run` jobs otherwise run
+against the tip of the default branch, which is not necessarily the commit CI
+validated.
+
+Deploys are serialised by a `deploy-production` concurrency group. It queues
+rather than cancels, so an in-flight deployment is always allowed to settle.
+Note that GitHub only holds *one* pending run per group: if several commits
+land in quick succession, intermediate runs are cancelled while queued and only
+the newest deploys. That is intended — the newest commit is the one you want.
+
+CD authenticates with a short-lived OIDC token. There are no AWS keys in GitHub
+secrets.
+
 ## Bringing the stack up from nothing
 
 ```sh
