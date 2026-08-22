@@ -152,7 +152,14 @@ distributes requests. This is accepted, not a bug to fix here; a correct
 multi-instance implementation needs shared state (e.g. Redis).
 
 **No staging environment.** `terraform/` is a single root module deploying
-straight to production.
+straight to production. CD deploys every green commit on `main` with no
+approval gate; `cd.yml` is deliberately separate from `ci.yml` so one can be
+added later without touching CI.
+
+**Infrastructure changes are not automated.** `terraform apply` is run by hand,
+with your credentials. The `ledger-cd` role can deploy the application but
+cannot modify infrastructure, so a compromised workflow cannot rewrite the
+account.
 
 ## Cost and the destroy-between-sessions habit
 
