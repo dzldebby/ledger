@@ -51,6 +51,10 @@ resource "aws_iam_role_policy" "cd" {
           "ecr:BatchCheckLayerAvailability",
           "ecr:GetDownloadUrlForLayer",
           "ecr:BatchGetImage",
+          # scripts/deploy.sh checks whether a tag already exists before
+          # building, so a re-run after a partial failure skips the push
+          # rather than failing against an immutable tag.
+          "ecr:DescribeImages",
           "ecr:PutImage",
           "ecr:InitiateLayerUpload",
           "ecr:UploadLayerPart",
