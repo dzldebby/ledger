@@ -42,6 +42,17 @@ DATABASE_URL=$(MSYS_NO_PATHCONV=1 aws ssm get-parameter \
 DEPLOYMENT_JSON=$(mktemp)
 trap 'rm -f "$DEPLOYMENT_JSON"' EXIT
 
+# The AWS CLI on Windows is a native binary and cannot read a POSIX path like
+# /tmp/tmp.XXXX that Git Bash's mktemp returns, so hand it a "C:/..." path.
+# cygpath is absent on Linux/macOS, where the path is already usable as-is.
+json_url() {
+  if command -v cygpath >/dev/null 2>&1; then
+    echo "file://$(cygpath -m "$1")"
+  else
+    echo "file://$1"
+  fi
+}
+
 # Written by python rather than a heredoc so the password is JSON-escaped
 # correctly and never has to survive shell quoting.
 OUT="$DEPLOYMENT_JSON" IMAGE="$IMAGE" DATABASE_URL="$DATABASE_URL" SERVICE="$SERVICE" \
