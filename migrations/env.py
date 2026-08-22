@@ -11,8 +11,12 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Override the sqlalchemy.url with value from .env
-config.set_main_option("sqlalchemy.url", os.getenv("DATABASE_URL"))
+# Override the sqlalchemy.url with value from .env.
+# set_main_option writes through ConfigParser, which treats "%" as
+# interpolation syntax, so any "%" in the URL (url-encoded password
+# characters, e.g. "%5E") must be escaped as "%%" or it raises
+# ValueError: invalid interpolation syntax.
+config.set_main_option("sqlalchemy.url", os.getenv("DATABASE_URL").replace("%", "%%"))
 
 target_metadata = None
 

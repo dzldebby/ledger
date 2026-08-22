@@ -39,9 +39,9 @@ resource "aws_iam_role_policy" "cd" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "EcrAuth"
-        Effect = "Allow"
-        Action = "ecr:GetAuthorizationToken"
+        Sid      = "EcrAuth"
+        Effect   = "Allow"
+        Action   = "ecr:GetAuthorizationToken"
         Resource = "*"
       },
       {

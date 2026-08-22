@@ -6,16 +6,16 @@ resource "random_password" "db_master" {
 
 resource "aws_lightsail_database" "ledger" {
   relational_database_name = "ledger-db"
-  blueprint_id              = "postgres_16"
-  bundle_id                 = var.db_bundle_id
+  blueprint_id             = "postgres_16"
+  bundle_id                = var.db_bundle_id
 
   master_database_name = "ledger"
-  master_username       = "ledger"
-  master_password        = random_password.db_master.result
+  master_username      = "ledger"
+  master_password      = random_password.db_master.result
 
-  publicly_accessible       = false
-  backup_retention_enabled  = true
-  skip_final_snapshot       = true
+  publicly_accessible      = false
+  backup_retention_enabled = true
+  skip_final_snapshot      = true
 }
 
 locals {

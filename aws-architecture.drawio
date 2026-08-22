@@ -1,0 +1,113 @@
+<mxfile host="app.diagrams.net" modified="2026-08-22T00:00:00.000Z" agent="claude-code" version="24.0.0" type="device">
+  <diagram name="AWS Architecture" id="aws-architecture">
+    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1650" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title -->
+        <mxCell id="title" value="Ledger &#8212; AWS Deployment Architecture" style="text;html=1;fontSize=20;fontStyle=1;align=left;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="40" y="10" width="600" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- AWS account boundary -->
+        <mxCell id="awsBoundary" value="AWS Account 302127759466 (us-east-1)" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;dashed=1;fillColor=none;strokeColor=#232F3E;fontColor=#232F3E;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="560" y="60" width="820" height="560" as="geometry" />
+        </mxCell>
+
+        <!-- External actors -->
+        <mxCell id="dev" value="Developer" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="40" y="70" width="120" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="enduser" value="End User&lt;br&gt;(browser)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="1440" y="270" width="120" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- GitHub side -->
+        <mxCell id="ghrepo" value="GitHub Repo&lt;br&gt;dzldebby/ledger" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eaeaea;strokeColor=#24292e;" vertex="1" parent="1">
+          <mxGeometry x="240" y="70" width="180" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ci" value="CI Workflow&lt;br&gt;(ci.yml)&lt;br&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;pytest against Postgres service&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eaeaea;strokeColor=#24292e;" vertex="1" parent="1">
+          <mxGeometry x="240" y="190" width="180" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cd" value="CD Workflow&lt;br&gt;(cd.yml)&lt;br&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;triggered via workflow_run&amp;nbsp;on CI success&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eaeaea;strokeColor=#24292e;" vertex="1" parent="1">
+          <mxGeometry x="240" y="320" width="180" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- AWS resources -->
+        <mxCell id="oidc" value="GitHub OIDC Provider&lt;br&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;token.actions.githubusercontent.com&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="600" y="100" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="iamrole" value="IAM Role: ledger-cd&lt;br&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;scoped to ECR + this Lightsail service + this SSM param&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="600" y="200" width="220" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ecr" value="ECR Repository: ledger&lt;br&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;immutable tags, scan on push, keep last 10&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="900" y="100" width="220" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cs" value="Lightsail Container Service: ledger&lt;br&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;power=nano, scale=1&lt;br&gt;public endpoint, health check /health&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="900" y="220" width="240" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ssm" value="SSM Parameter&lt;br&gt;/ledger/database_url&lt;br&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;SecureString&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="600" y="340" width="220" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="db" value="Lightsail Database: ledger-db&lt;br&gt;&lt;font style=&quot;font-size: 11px&quot;&gt;postgres_16, micro_2_0&lt;br&gt;publicly_accessible=false&lt;/font&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="920" y="400" width="200" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- Edges -->
+        <mxCell id="e1" value="git push (main)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="dev" target="ghrepo">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e2" value="on push / PR" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="ghrepo" target="ci">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e3" value="workflow_run&#10;(on CI success, main only)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="ci" target="cd">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e4" value="AssumeRoleWithWebIdentity&#10;(OIDC, no static AWS keys)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="cd" target="iamrole">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e5" value="trust policy:&#10;repo:dzldebby/ledger:ref:refs/heads/main" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;endArrow=none;startArrow=none;" edge="1" parent="1" source="iamrole" target="oidc">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e6" value="docker push&#10;(tag: commit SHA)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="cd" target="ecr">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e7" value="GetParameter&#10;DATABASE_URL" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="cd" target="ssm">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e8" value="CreateContainerServiceDeployment" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="cd" target="cs">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e9" value="pulls image&#10;(private_registry_access,&#10;ecr_image_puller_role)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="cs" target="ecr">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e10" value="SQL over private network&#10;(advisory-lock migration on boot)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="cs" target="db">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e11" value="HTTPS&#10;/health, /ui, API" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="enduser" target="cs">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -16,7 +16,9 @@ ADVISORY_LOCK_KEY = 727271
 
 def main():
     database_url = os.environ["DATABASE_URL"]
-    conn = psycopg2.connect(database_url)
+    print("Connecting to database...", flush=True)
+    conn = psycopg2.connect(database_url, connect_timeout=10)
+    print("Connected.", flush=True)
     conn.autocommit = True
     cur = conn.cursor()
 
