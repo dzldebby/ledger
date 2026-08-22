@@ -23,7 +23,14 @@ resource "aws_iam_role" "cd" {
             "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
           }
           StringLike = {
-            "token.actions.githubusercontent.com:sub" = "repo:${var.github_repo}:ref:refs/heads/main"
+            # Both forms are accepted: GitHub issues the immutable
+            # (owner@id/repo@id) subject, while the legacy owner/repo form is
+            # kept so this keeps working if that behaviour differs elsewhere.
+            # A list matches if ANY entry matches.
+            "token.actions.githubusercontent.com:sub" = [
+              "repo:${var.github_repo}:ref:refs/heads/main",
+              "repo:${var.github_repo_immutable}:ref:refs/heads/main",
+            ]
           }
         }
       }
