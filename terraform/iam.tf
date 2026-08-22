@@ -70,15 +70,23 @@ resource "aws_iam_role_policy" "cd" {
         Resource = aws_ecr_repository.ledger.arn
       },
       {
-        Sid    = "LightsailDeploy"
+        Sid      = "LightsailDeploy"
+        Effect   = "Allow"
+        Action   = "lightsail:CreateContainerServiceDeployment"
+        Resource = aws_lightsail_container_service.ledger.arn
+      },
+      {
+        Sid    = "LightsailRead"
         Effect = "Allow"
         Action = [
-          "lightsail:CreateContainerServiceDeployment",
           "lightsail:GetContainerServices",
           "lightsail:GetContainerServiceDeployments",
           "lightsail:GetContainerLog",
         ]
-        Resource = aws_lightsail_container_service.ledger.arn
+        # Lightsail's read actions do not support resource-level permissions.
+        # Scoping them to the service ARN is an implicit deny, which showed up
+        # as a deploy that hung forever polling a status it could never read.
+        Resource = "*"
       },
       {
         Sid      = "SsmReadDatabaseUrl"
