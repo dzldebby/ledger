@@ -1,0 +1,64 @@
+name: CD
+
+# Runs only after CI succeeds on main, so a red build is never deployed.
+# Kept separate from ci.yml so the fast test loop stays uncoupled from the
+# slower deploy path, and so a manual approval gate can be added here later
+# without touching CI.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+# Never let two deploys race; queue them instead of cancelling, since a
+# half-finished deployment should still be allowed to settle.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  id-token: write # required to request the OIDC token
+  contents: read
+
+jobs:
+  deploy:
+    # `types: [completed]` fires on failure too, so gate on the conclusion.
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the commit CI tested
+        uses: actions/checkout@v4
+        with:
+          # workflow_run runs against the default branch by default, which is
+          # not necessarily the commit CI just validated.
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      # scripts/deploy.sh invokes `python`, which is not guaranteed to exist
+      # on the runner unless it is set up explicitly.
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::302127759466:role/ledger-cd
+          aws-region: us-east-1
+
+      - name: Build, push and deploy
+        run: ./scripts/deploy.sh "${GITHUB_SHA::7}"
+
+      - name: Smoke test the deployed service
+        run: |
+          URL=$(aws lightsail get-container-services \
+                  --service-name ledger --region us-east-1 \
+                  --query 'containerServices[0].url' --output text)
+          echo "Checking ${URL}health"
+          CODE=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 "${URL}health")
+          echo "HTTP ${CODE}"
+          test "$CODE" = "200"
