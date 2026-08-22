@@ -42,10 +42,13 @@ DATABASE_URL=$(MSYS_NO_PATHCONV=1 aws ssm get-parameter \
 DEPLOYMENT_JSON=$(mktemp)
 trap 'rm -f "$DEPLOYMENT_JSON"' EXIT
 
-IMAGE="$IMAGE" DATABASE_URL="$DATABASE_URL" SERVICE="$SERVICE" \
-python -c '
+# Written by python rather than a heredoc so the password is JSON-escaped
+# correctly and never has to survive shell quoting.
+OUT="$DEPLOYMENT_JSON" IMAGE="$IMAGE" DATABASE_URL="$DATABASE_URL" SERVICE="$SERVICE" \
+python - <<'PY'
 import json, os
-json.dump({
+
+deployment = {
     "serviceName": os.environ["SERVICE"],
     "containers": {
         "app": {
@@ -71,36 +74,11 @@ json.dump({
             "unhealthyThreshold": 10,
         },
     },
-}, open(os.environ["OUT"], "w"))
-' OUT="$DEPLOYMENT_JSON" 2>/dev/null || \
-OUT="$DEPLOYMENT_JSON" IMAGE="$IMAGE" DATABASE_URL="$DATABASE_URL" SERVICE="$SERVICE" python -c '
-import json, os
-json.dump({
-    "serviceName": os.environ["SERVICE"],
-    "containers": {
-        "app": {
-            "image": os.environ["IMAGE"],
-            "ports": {"8000": "HTTP"},
-            "environment": {
-                "DATABASE_URL": os.environ["DATABASE_URL"],
-                "RATE_LIMIT_PER_MINUTE": "1000",
-            },
-        }
-    },
-    "publicEndpoint": {
-        "containerName": "app",
-        "containerPort": 8000,
-        "healthCheck": {
-            "path": "/health",
-            "successCodes": "200-399",
-            "intervalSeconds": 10,
-            "timeoutSeconds": 5,
-            "healthyThreshold": 2,
-            "unhealthyThreshold": 10,
-        },
-    },
-}, open(os.environ["OUT"], "w"))
-'
+}
+
+with open(os.environ["OUT"], "w") as f:
+    json.dump(deployment, f)
+PY
 
 echo "==> Creating deployment"
 VERSION=$(MSYS_NO_PATHCONV=1 aws lightsail create-container-service-deployment \
@@ -116,16 +94,16 @@ until STATE=$(aws lightsail get-container-service-deployments \
   sleep 5
 done
 
-URL=$(aws lightsail get-container-services --service-name "$SERVICE" \
-        --region "$REGION" --query 'containerServices[0].url' --output text)
-
 if [ "$STATE" = "FAILED" ]; then
-  echo "==> Deployment FAILED. Container logs:"
+  echo "==> Deployment FAILED. Recent container logs:"
   aws lightsail get-container-log --service-name "$SERVICE" \
     --container-name app --region "$REGION" \
     --query 'logEvents[-40:].message' --output text
   exit 1
 fi
+
+URL=$(aws lightsail get-container-services --service-name "$SERVICE" \
+        --region "$REGION" --query 'containerServices[0].url' --output text)
 
 echo "==> Deployment ACTIVE"
 echo "==> ${URL}"
