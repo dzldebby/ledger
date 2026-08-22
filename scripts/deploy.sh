@@ -94,7 +94,7 @@ PY
 echo "==> Creating deployment"
 VERSION=$(MSYS_NO_PATHCONV=1 aws lightsail create-container-service-deployment \
   --region "$REGION" \
-  --cli-input-json "file://$DEPLOYMENT_JSON" \
+  --cli-input-json "$(json_url "$DEPLOYMENT_JSON")" \
   --query 'containerService.nextDeployment.version' --output text)
 
 echo "==> Deployment version ${VERSION} created; waiting for it to go ACTIVE"
