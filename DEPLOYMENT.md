@@ -62,16 +62,20 @@ The last step prints the API key once — save it. The container service URL is
 newly generated on each `apply`, so it will differ from last time; get it from
 `terraform output container_service_url` or the tail of `deploy.sh`.
 
-## Deploying a new image
+## Deploying by hand
+
+Normally you do not need this — merging to `main` deploys. Use it to bring a
+fresh stack up, or to deploy something that is not on `main`.
 
 ```sh
 AWS_PROFILE=ledger ./scripts/deploy.sh          # tags with the current commit SHA
 AWS_PROFILE=ledger ./scripts/deploy.sh hotfix1  # or an explicit tag
 ```
 
-The script logs in to ECR, builds and pushes, reads `DATABASE_URL` from SSM,
-creates the deployment, waits for it to go `ACTIVE`, and dumps container logs
-if it fails.
+CD runs this same script, so the manual and automated paths cannot drift apart.
+It logs in to ECR, builds and pushes, reads `DATABASE_URL` from SSM, creates the
+deployment, waits (bounded, 10 min) for it to go `ACTIVE`, and dumps container
+logs if it fails.
 
 Two things it handles that are easy to get wrong by hand:
 `--provenance=false --sbom=false` (buildx otherwise attaches an attestation
