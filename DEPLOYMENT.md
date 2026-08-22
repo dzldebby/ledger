@@ -219,3 +219,36 @@ Terraform-generated password containing URL-encoded characters (`%5E`, `%25`,
 …) raises `ValueError: invalid interpolation syntax`. `migrations/env.py`
 escapes `%` as `%%`. This is invisible locally and in CI, where the password is
 the literal string `ledger` and contains no `%`.
+
+**GitHub issues immutable OIDC subject claims.** The documented legacy form is
+`repo:owner/name:ref:refs/heads/main`, but GitHub now presents
+`repo:owner@19401055/name@1330920517:ref:refs/heads/main`, with numeric IDs
+that survive renames. No wildcard bridges the two, so a trust policy written
+against the legacy form fails with a bare `Not authorized to perform
+sts:AssumeRoleWithWebIdentity`. The trust policy in `terraform/iam.tf` accepts
+both; `var.github_repo_immutable` holds the immutable form and its description
+documents how to rediscover it from CloudTrail if the repo is recreated.
+
+**Lightsail read actions cannot be resource-scoped.** `GetContainerServices`,
+`GetContainerServiceDeployments` and `GetContainerLog` must be granted on
+`Resource = "*"`; scoping them to the service ARN is an implicit deny.
+`CreateContainerServiceDeployment` *does* support resource-level permissions,
+which makes this especially confusing — the deployment is created successfully
+and only the status polling is denied. The symptom was a CD job that deployed
+correctly and then hung until timeout.
+
+**Do not let a wait loop treat an API error as "not ready".** The original
+`deploy.sh` poll retried on any failure, so an IAM denial was indistinguishable
+from a slow deployment and would have spun until the six-hour job timeout. It
+now fails immediately on an unreadable status, on a missing deployment, and
+after a bounded number of attempts.
+
+**Git Bash and Windows binaries disagree about paths.** MSYS rewrites
+POSIX-looking paths when passing *arguments and environment variables* to native
+Windows binaries, but never for *stdin*. All three variants bit us: the SSM
+parameter name `/ledger/database_url` was converted when it should not have been
+(fixed with `MSYS_NO_PATHCONV=1`), a `file:///tmp/...` argument was *not*
+converted when it needed to be (fixed with `cygpath -m`), and a path
+interpolated into a heredoc was never converted at all (fixed with an explicit
+`$WORK_WIN`). The scripts now handle each case explicitly and degrade to no-ops
+on Linux, which is what the CD runner uses.
