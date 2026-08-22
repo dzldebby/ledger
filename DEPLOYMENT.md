@@ -79,31 +79,36 @@ rollback that itself fails to boot will not take the service down.
 
 ## Provisioning an API client
 
-The database is private, so `scripts/create_client.py` cannot be run from a
-laptop, and Lightsail has no run-once/exec primitive. Instead, generate the key
-locally and send only its hash to a temporary sidecar container:
-
 ```sh
-# 1. Locally - the plaintext key never leaves this machine
-python -c "from app.auth import generate_api_key, hash_api_key; \
-k=generate_api_key(); print('KEY:', k); print('HASH:', hash_api_key(k))"
-
-# 2. Add a second container to deployment.json alongside `app`:
-#      image:       (same image)
-#      command:     ["sh","-c","python scripts/register_client_hash.py && sleep infinity"]
-#      environment: DATABASE_URL, CLIENT_ID, API_KEY_HASH
-#    Deploy, confirm "Client '<id>' registered." in that container's log,
-#    then deploy again with the sidecar removed.
+AWS_PROFILE=ledger ./scripts/provision_client.sh <client_id>
 ```
 
-`sleep infinity` is needed because Lightsail has no notion of a container that
-is *meant* to exit — one that does looks like a crash and is restarted.
-`register_client_hash.py` uses `ON CONFLICT DO NOTHING`, so a restart is a
-harmless no-op.
+The key is printed once at the end. Only its SHA-256 hash is stored, so a lost
+key cannot be recovered — provision a new client instead.
 
-Only the hash is sent to AWS. This matters because container `environment`
-values are visible via the AWS API and persist in deployment history
-permanently.
+### Why it takes two deployments
+
+The database is private, so `scripts/create_client.py` cannot be run from a
+laptop, and Lightsail has no exec/run-once primitive. The only thing that can
+reach the database is a container inside the service. So the script adds a
+second container to the running deployment purely to carry one `INSERT`, then
+deploys again with it removed. It reuses the live deployment's image and
+settings, so the running app is unaffected.
+
+Three details that matter:
+
+- **The sidecar ends in `sleep infinity`.** Lightsail has no notion of a
+  container that is *meant* to exit; one that does looks like a crash and is
+  restarted.
+- **`register_client_hash.py` uses `ON CONFLICT DO NOTHING`,** so a restart is
+  a harmless no-op rather than a crash.
+- **Only the hash is sent to AWS.** Container `environment` values are readable
+  via the AWS API and persist in deployment history permanently, so the
+  plaintext key is generated locally and never leaves the machine.
+
+If you provision clients often, this two-deployment cycle is the wrong shape —
+consider a small Lightsail instance in the same region as an admin jumpbox, or
+a bootstrap-token-gated admin endpoint.
 
 ## Known limitations
 
