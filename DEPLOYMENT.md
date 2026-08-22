@@ -98,16 +98,23 @@ ECR lifecycle policy keeps the last 10). To roll back, create a new deployment
 that cites the previous tag:
 
 ```sh
-# See deployment history and the image each version used
+# 1. See deployment history and the image each version used
 AWS_PROFILE=ledger aws lightsail get-container-service-deployments \
   --service-name ledger --region us-east-1 \
-  --query 'deployments[].{v:version,state:state,image:containers.app.image}'
+  --query 'deployments[].{v:version,state:state,image:containers.app.image}' \
+  --output table
+
+# 2. Redeploy a known-good tag. The image is already in ECR, so this skips
+#    the build and takes about a minute.
+AWS_PROFILE=ledger ./scripts/deploy.sh <known-good-tag>
 ```
 
-Edit `deployment.json` to reference the known-good tag and run
-`create-container-service-deployment` again. Lightsail keeps serving the
-current healthy deployment until the new one passes its health check, so a
-rollback that itself fails to boot will not take the service down.
+Lightsail keeps serving the current healthy deployment until the new one passes
+its health check, so a rollback that itself fails to boot will not take the
+service down.
+
+Note that the next push to `main` will deploy over a manual rollback. To make a
+rollback stick, revert the offending commit rather than only redeploying.
 
 ## Provisioning an API client
 
