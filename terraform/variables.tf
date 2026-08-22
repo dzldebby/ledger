@@ -27,3 +27,16 @@ variable "github_repo" {
   type        = string
   default     = "dzldebby/ledger"
 }
+
+variable "github_repo_immutable" {
+  description = <<-EOT
+    Immutable form of github_repo, carrying @<numeric-id> suffixes on both the
+    owner and repo slugs. GitHub now issues OIDC subject claims in this form so
+    they survive renames, and it does NOT match the legacy owner/name pattern.
+    Find the value in the CloudTrail AssumeRoleWithWebIdentity event:
+      aws cloudtrail lookup-events \
+        --lookup-attributes AttributeKey=EventName,AttributeValue=AssumeRoleWithWebIdentity
+  EOT
+  type        = string
+  default     = "dzldebby@19401055/ledger@1330920517"
+}
