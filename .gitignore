@@ -5,6 +5,12 @@ __pycache__/
 .pytest_cache/
 .venv/
 
+# Editor/tool temp files, which the auto-commit watcher would otherwise
+# catch mid-write and commit
+*.tmp.*
+*.swp
+*~
+
 # Terraform
 **/.terraform/
 *.tfstate
