@@ -175,10 +175,35 @@ This destroys the app stack but leaves the S3 state bootstrap intact, so
 `skip_final_snapshot = true`, so **all ledger data is lost** — fine for a
 demo/learning deployment, not something to run against real data.
 
+## Debugging a failed deploy
+
+**GitHub's job logs are not readable via the API without a token** — the logs
+endpoint returns `403` even on a public repo. When a deploy fails at the AWS
+boundary, CloudTrail is the authoritative source and needs no extra setup:
+
+```sh
+# Why did OIDC / assume-role fail? Shows the exact subject claim presented.
+AWS_PROFILE=ledger aws cloudtrail lookup-events \
+  --lookup-attributes AttributeKey=EventName,AttributeValue=AssumeRoleWithWebIdentity \
+  --max-results 3
+
+# Which API call was denied, for which principal, on which resource?
+AWS_PROFILE=ledger aws cloudtrail lookup-events \
+  --lookup-attributes AttributeKey=EventName,AttributeValue=GetContainerServiceDeployments \
+  --max-results 3
+```
+
+Every one of the failures below was diagnosed this way after the Actions UI
+gave nothing useful.
+
 ## Gotchas already paid for
 
-Two failures cost significant debugging time; both are now guarded by comments
-in the code, but they are worth knowing about.
+Each of these cost real debugging time. All are now guarded by comments in the
+code, but the shared lesson is worth stating plainly: **the expensive failures
+here are the silent ones.** Four separate times, a misconfiguration produced no
+error at all — just a hang or an empty log — and looked exactly like slowness.
+When something appears to be taking too long, check whether it is actually
+failing invisibly.
 
 **ECR pull permission uses a different principal than you expect.** A Lightsail
 container service exposes *two* ARNs: `principal_arn` and, separately,
