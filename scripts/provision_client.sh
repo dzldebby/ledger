@@ -44,9 +44,9 @@ sys.path.insert(0, ".")
 from app.auth import generate_api_key, hash_api_key
 
 key = generate_api_key()
-with open("$WORK/key", "w") as f:
+with open("$WORK_WIN/key", "w") as f:
     f.write(key)
-with open("$WORK/hash", "w") as f:
+with open("$WORK_WIN/hash", "w") as f:
     f.write(hash_api_key(key))
 PY
 
@@ -60,7 +60,7 @@ aws lightsail get-container-service-deployments \
 # Build two deployments from whatever is running right now: one with the
 # provisioner sidecar added, one without. Reusing the live config means this
 # never changes the image or settings of the running app.
-CLIENT_ID="$CLIENT_ID" API_KEY_HASH="$API_KEY_HASH" SERVICE="$SERVICE" WORK="$WORK" \
+CLIENT_ID="$CLIENT_ID" API_KEY_HASH="$API_KEY_HASH" SERVICE="$SERVICE" WORK="$WORK_WIN" \
 python - <<'PY'
 import json, os
 
