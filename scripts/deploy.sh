@@ -105,10 +105,31 @@ VERSION=$(MSYS_NO_PATHCONV=1 aws lightsail create-container-service-deployment \
   --query 'containerService.nextDeployment.version' --output text)
 
 echo "==> Deployment version ${VERSION} created; waiting for it to go ACTIVE"
-until STATE=$(aws lightsail get-container-service-deployments \
-                --service-name "$SERVICE" --region "$REGION" \
-                --query "deployments[?version==\`${VERSION}\`].state" --output text); \
-      [ "$STATE" = "ACTIVE" ] || [ "$STATE" = "FAILED" ]; do
+# Bounded, and treats an unreadable status as an error rather than "not ready".
+# An earlier version looped forever when the status call was denied by IAM,
+# which looks identical to a slow deploy until the job times out.
+ATTEMPTS=0
+MAX_ATTEMPTS=120 # 120 x 5s = 10 minutes
+while :; do
+  if ! STATE=$(aws lightsail get-container-service-deployments \
+                 --service-name "$SERVICE" --region "$REGION" \
+                 --query "deployments[?version==\`${VERSION}\`].state" \
+                 --output text 2>&1); then
+    echo "Could not read deployment status: $STATE"
+    exit 1
+  fi
+
+  case "$STATE" in
+    ACTIVE) break ;;
+    FAILED) break ;;
+    "") echo "Deployment ${VERSION} not found in the deployment list"; exit 1 ;;
+  esac
+
+  ATTEMPTS=$((ATTEMPTS + 1))
+  if [ "$ATTEMPTS" -ge "$MAX_ATTEMPTS" ]; then
+    echo "Timed out after $((MAX_ATTEMPTS * 5))s waiting for deployment ${VERSION} (last state: ${STATE})"
+    exit 1
+  fi
   sleep 5
 done
 
