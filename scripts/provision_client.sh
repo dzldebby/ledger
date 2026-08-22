@@ -106,7 +106,7 @@ wait_active() {
 
 echo "==> Deploying with the provisioner sidecar"
 V1=$(MSYS_NO_PATHCONV=1 aws lightsail create-container-service-deployment \
-  --region "$REGION" --cli-input-json "file://$WORK/with_sidecar.json" \
+  --region "$REGION" --cli-input-json "$(json_url "$WORK/with_sidecar.json")" \
   --query 'containerService.nextDeployment.version' --output text)
 wait_active "$V1"
 
@@ -123,7 +123,7 @@ fi
 
 echo "==> Removing the sidecar"
 V2=$(MSYS_NO_PATHCONV=1 aws lightsail create-container-service-deployment \
-  --region "$REGION" --cli-input-json "file://$WORK/without_sidecar.json" \
+  --region "$REGION" --cli-input-json "$(json_url "$WORK/without_sidecar.json")" \
   --query 'containerService.nextDeployment.version' --output text)
 wait_active "$V2"
 
