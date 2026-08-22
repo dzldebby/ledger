@@ -21,22 +21,36 @@ Terraform in `terraform/`.
 State lives in the S3 bucket created by `terraform/bootstrap/`, which is a
 separate stack and is *not* destroyed between sessions.
 
+## Bringing the stack up from nothing
+
+```sh
+cd terraform && AWS_PROFILE=ledger terraform apply   # ~12 min (database dominates)
+cd .. && AWS_PROFILE=ledger ./scripts/deploy.sh      # build, push, deploy
+```
+
+Then provision an API client (see below) — the previous one is gone with the
+old database. The container service URL is newly generated on each `apply`, so
+it will differ from last time.
+
 ## Deploying a new image
 
 ```sh
-TAG=$(git rev-parse --short HEAD)
-AWS_PROFILE=ledger aws ecr get-login-password --region us-east-1 \
-  | docker login --username AWS --password-stdin 302127759466.dkr.ecr.us-east-1.amazonaws.com
-
-docker buildx build --platform linux/amd64 --provenance=false --sbom=false \
-  -t 302127759466.dkr.ecr.us-east-1.amazonaws.com/ledger:$TAG --push .
-
-AWS_PROFILE=ledger aws lightsail create-container-service-deployment \
-  --region us-east-1 --cli-input-json file://deployment.json
+AWS_PROFILE=ledger ./scripts/deploy.sh          # tags with the current commit SHA
+AWS_PROFILE=ledger ./scripts/deploy.sh hotfix1  # or an explicit tag
 ```
 
-`--provenance=false --sbom=false` is required: buildx otherwise attaches an
-attestation manifest that ECR rejects with a `400 Bad Request` on push.
+The script logs in to ECR, builds and pushes, reads `DATABASE_URL` from SSM,
+creates the deployment, waits for it to go `ACTIVE`, and dumps container logs
+if it fails.
+
+Two things it handles that are easy to get wrong by hand:
+`--provenance=false --sbom=false` (buildx otherwise attaches an attestation
+manifest that ECR rejects with a `400` on push), and `MSYS_NO_PATHCONV=1`
+(Git Bash on Windows otherwise mangles the leading `/` of the SSM parameter
+name into a drive path).
+
+ECR tags are immutable, so re-running with an already-pushed tag fails rather
+than silently replacing an image.
 
 Migrations run automatically on container start (`scripts/entrypoint.sh` →
 `scripts/migrate_with_lock.py`) under a Postgres advisory lock, so concurrent
