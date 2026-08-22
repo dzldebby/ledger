@@ -24,13 +24,15 @@ separate stack and is *not* destroyed between sessions.
 ## Bringing the stack up from nothing
 
 ```sh
-cd terraform && AWS_PROFILE=ledger terraform apply   # ~12 min (database dominates)
-cd .. && AWS_PROFILE=ledger ./scripts/deploy.sh      # build, push, deploy
+cd terraform && AWS_PROFILE=ledger terraform apply       # ~12 min (database dominates)
+cd ..
+AWS_PROFILE=ledger ./scripts/deploy.sh                   # build, push, deploy
+AWS_PROFILE=ledger ./scripts/provision_client.sh demo    # mint an API key
 ```
 
-Then provision an API client (see below) — the previous one is gone with the
-old database. The container service URL is newly generated on each `apply`, so
-it will differ from last time.
+The last step prints the API key once — save it. The container service URL is
+newly generated on each `apply`, so it will differ from last time; get it from
+`terraform output container_service_url` or the tail of `deploy.sh`.
 
 ## Deploying a new image
 
