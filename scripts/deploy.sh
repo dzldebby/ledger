@@ -24,13 +24,20 @@ echo "==> Logging in to ECR"
 aws ecr get-login-password --region "$REGION" \
   | docker login --username AWS --password-stdin "$REGISTRY"
 
-# --provenance/--sbom are required: buildx otherwise attaches an attestation
-# manifest that ECR rejects with a 400 on push.
-echo "==> Building and pushing"
-docker buildx build \
-  --platform linux/amd64 \
-  --provenance=false --sbom=false \
-  -t "$IMAGE" --push .
+# Tags are immutable, so re-pushing one that already exists fails. Skipping the
+# push instead makes this script safe to re-run after a later step failed.
+if aws ecr describe-images --repository-name ledger --region "$REGION" \
+     --image-ids "imageTag=${TAG}" >/dev/null 2>&1; then
+  echo "==> Tag ${TAG} already in ECR, skipping build/push"
+else
+  # --provenance/--sbom are required: buildx otherwise attaches an attestation
+  # manifest that ECR rejects with a 400 on push.
+  echo "==> Building and pushing"
+  docker buildx build \
+    --platform linux/amd64 \
+    --provenance=false --sbom=false \
+    -t "$IMAGE" --push .
+fi
 
 echo "==> Fetching DATABASE_URL from SSM"
 # MSYS_NO_PATHCONV stops Git Bash on Windows mangling the leading "/" of the
