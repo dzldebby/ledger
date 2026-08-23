@@ -58,6 +58,22 @@ def provision_api_client(client_id: str) -> str:
     return api_key
 
 
+def db_rows(sql, params=None):
+    """Runs a read query against the test database and returns dict rows.
+
+    Lets a test assert on state the API does not expose, such as
+    outbox_events.
+    """
+    conn = psycopg2.connect(TEST_DATABASE_URL)
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql, params or ())
+            columns = [d[0] for d in cur.description]
+            return [dict(zip(columns, row)) for row in cur.fetchall()]
+    finally:
+        conn.close()
+
+
 @pytest.fixture(scope="session")
 def client():
     api_key = provision_api_client("test-client")

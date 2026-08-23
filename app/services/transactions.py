@@ -1,4 +1,6 @@
 import hashlib
+import json
+
 import asyncpg
 from app.schemas.transactions import DepositCreate, TransferCreate, ReversalCreate, TransactionResponse, PostingResponse
 
@@ -82,6 +84,7 @@ async def _run_idempotent(conn: asyncpg.Connection, client_scope: str, idempoten
             raise IdempotencyKeyReuseError()
 
         response = await execute_fn(conn)
+        await _record_outbox_event(conn, response)
 
         await conn.execute("""
             UPDATE idempotency_records SET state = 'complete', transaction_id = $1
@@ -89,6 +92,25 @@ async def _run_idempotent(conn: asyncpg.Connection, client_scope: str, idempoten
         """, response.transaction_id, client_scope, idempotency_key)
 
     return response
+
+
+async def _record_outbox_event(conn: asyncpg.Connection, response: TransactionResponse) -> None:
+    """Writes the transactional-outbox row for a transaction just posted.
+
+    Called from inside _run_idempotent's transaction, so the event commits
+    atomically with the postings, the balance updates and the idempotency
+    record. An event therefore cannot exist for a transaction that rolled
+    back, and cannot be missing for one that committed - which is what lets a
+    downstream consumer trust the outbox as the record of what happened.
+
+    A replayed idempotency key returns the cached response without reaching
+    here, so a retry does not produce a duplicate event.
+    """
+    await conn.execute("""
+        INSERT INTO outbox_events (transaction_id, event_type, payload)
+        VALUES ($1::uuid, $2, $3::jsonb)
+    """, response.transaction_id, f"transaction.{response.type}",
+         json.dumps(response.model_dump()))
 
 
 async def _execute_deposit(conn: asyncpg.Connection, data: DepositCreate) -> TransactionResponse:
