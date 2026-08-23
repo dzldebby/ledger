@@ -24,11 +24,14 @@ def accounts(client):
 
 
 def test_stats_requires_an_api_key(client):
+    # the client fixture is session-scoped, so the key must be captured before
+    # removing it and restored afterwards or every later test loses auth
+    key = client.headers["X-API-Key"]
     try:
         del client.headers["X-API-Key"]
         assert client.get("/admin/outbox/stats").status_code == 422
     finally:
-        client.headers["X-API-Key"] = client.headers.get("X-API-Key", "")
+        client.headers["X-API-Key"] = key
 
 
 def test_stats_returns_the_expected_shape(client):
