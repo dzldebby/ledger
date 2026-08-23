@@ -85,8 +85,10 @@ with_sidecar["containers"]["provisioner"] = {
     "image": current["containers"]["app"]["image"],
     # sleep keeps it alive: Lightsail has no notion of a container that is
     # *meant* to exit, so one that does looks like a crash and is restarted.
+    # Deliberately ";" and not "&&" - on failure the container must still stay
+    # up so its log survives to be read, rather than crash-looping.
     "command": ["sh", "-c",
-                "python scripts/register_client_hash.py && sleep infinity"],
+                "python scripts/register_client_hash.py; sleep infinity"],
     "environment": {
         "DATABASE_URL": current["containers"]["app"]["environment"]["DATABASE_URL"],
         "CLIENT_ID": os.environ["CLIENT_ID"],
@@ -118,15 +120,37 @@ V1=$(MSYS_NO_PATHCONV=1 aws lightsail create-container-service-deployment \
 wait_active "$V1"
 
 echo "==> Checking the provisioner ran"
-if aws lightsail get-container-log --service-name "$SERVICE" \
-     --container-name provisioner --region "$REGION" \
-     --query 'logEvents[].message' --output text | grep -q "registered"; then
-  echo "    client '${CLIENT_ID}' registered"
-else
-  echo "    WARNING: no 'registered' line in the provisioner log - check it:"
-  echo "    aws lightsail get-container-log --service-name ${SERVICE} \\"
-  echo "      --container-name provisioner --region ${REGION}"
-fi
+LOG=$(aws lightsail get-container-log --service-name "$SERVICE" \
+        --container-name provisioner --region "$REGION" \
+        --query 'logEvents[].message' --output text)
+
+# The provisioner reports exactly one OK:/ERROR: line. Anything else means it
+# did not get far enough to say, so treat it as a failure rather than assuming.
+RESULT=$(printf '%s\n' "$LOG" | grep -oE '(OK|ERROR): .*' | tail -1)
+
+case "$RESULT" in
+  "OK: "*)
+    echo "    ${RESULT}" ;;
+  "ERROR: "*)
+    echo "    ${RESULT}"
+    echo "==> Removing the sidecar before exiting"
+    MSYS_NO_PATHCONV=1 aws lightsail create-container-service-deployment \
+      --region "$REGION" --cli-input-json "$(json_url "$WORK/without_sidecar.json")" \
+      --query 'containerService.nextDeployment.version' --output text >/dev/null
+    echo
+    echo "No API key was stored. Nothing to save."
+    exit 1 ;;
+  *)
+    echo "    Could not confirm the provisioner ran. Its log said:"
+    printf '%s\n' "$LOG" | tail -20 | sed 's/^/      /'
+    echo "==> Removing the sidecar before exiting"
+    MSYS_NO_PATHCONV=1 aws lightsail create-container-service-deployment \
+      --region "$REGION" --cli-input-json "$(json_url "$WORK/without_sidecar.json")" \
+      --query 'containerService.nextDeployment.version' --output text >/dev/null
+    echo
+    echo "Not printing an API key that may not have been stored."
+    exit 1 ;;
+esac
 
 echo "==> Removing the sidecar"
 V2=$(MSYS_NO_PATHCONV=1 aws lightsail create-container-service-deployment \

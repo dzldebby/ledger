@@ -31,16 +31,50 @@ def main():
         sys.exit(1)
 
     conn = psycopg2.connect(os.environ["DATABASE_URL"], connect_timeout=10)
+    status = _register(conn, client_id, api_key_hash)
+    conn.close()
+
+    print(status, flush=True)
+    if status.startswith("ERROR:"):
+        sys.exit(1)
+
+
+def _register(conn, client_id, api_key_hash):
+    """Returns a line starting with OK: or ERROR:, which the caller greps for.
+
+    A row may already exist for two very different reasons, and conflating them
+    hands the operator an API key that was never stored:
+
+      - this container restarted, re-running an insert that already succeeded
+        (same hash) - harmless, and why the insert is ON CONFLICT DO NOTHING
+      - the client_id is genuinely taken by a different key - the key the
+        caller is about to be shown will not authenticate
+    """
     with conn:
         with conn.cursor() as cur:
             cur.execute(
                 "INSERT INTO api_clients (client_id, api_key_hash) VALUES (%s, %s)"
-                " ON CONFLICT (client_id) DO NOTHING",
+                " ON CONFLICT (client_id) DO NOTHING"
+                " RETURNING client_id",
                 (client_id, api_key_hash),
             )
-    conn.close()
+            if cur.fetchone() is not None:
+                return f"OK: client '{client_id}' registered."
 
-    print(f"Client '{client_id}' registered.", flush=True)
+            cur.execute(
+                "SELECT api_key_hash FROM api_clients WHERE client_id = %s",
+                (client_id,),
+            )
+            existing = cur.fetchone()[0]
+
+    if existing == api_key_hash:
+        return f"OK: client '{client_id}' was already registered with this same key."
+
+    return (
+        f"ERROR: client '{client_id}' already exists with a different API key. "
+        "The key just generated was NOT stored and will not work. "
+        "Re-run with a different client_id."
+    )
 
 
 if __name__ == "__main__":
