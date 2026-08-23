@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from app.database import create_pool, close_pool
-from app.routers import accounts, transactions
+from app.routers import accounts, admin, transactions
 
 
 @asynccontextmanager
