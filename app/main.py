@@ -15,6 +15,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Ledger API", lifespan=lifespan)
 app.include_router(accounts.router)
 app.include_router(transactions.router)
+app.include_router(admin.router)
 app.mount("/ui", StaticFiles(directory="app/static", html=True), name="ui")
 
 
