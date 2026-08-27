@@ -131,8 +131,8 @@ Two invariants a consumer can rely on:
     "state": "posted",
     "reversal_of_id": null,
     "postings": [
-      {"account_id": "bank-system-acct", "side": "debit",  "amount_minor": 100000},
-      {"account_id": "alice-acct",     "side": "credit", "amount_minor": 100000}
+      {"account_id": "bank-system-acct", "side": "credit",  "amount_minor": 100000},
+      {"account_id": "alice-acct",     "side": "debit", "amount_minor": 100000}
     ]
   }
 }
