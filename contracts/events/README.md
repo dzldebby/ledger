@@ -192,6 +192,15 @@ A reversal is a **new transaction with opposite postings**, not an edit or
 deletion of the original. The original transaction stays exactly as it was, and
 its event is never retracted or amended. `reversal_of_id` links them.
 
+Note the reversal has its own new `transaction_id`; `reversal_of_id` carries
+the original.
+
+**The transfer and reversal fixtures are a matched pair** — the reversal
+reverses the transfer, with mirrored postings and a later `occurred_at`. Feed
+them to a consumer in *reverse* order to test the out-of-order case described
+below: a reversal arriving before the transaction it reverses must not be
+treated as an error.
+
 ---
 
 ## Delivery semantics
