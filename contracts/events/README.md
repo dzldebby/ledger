@@ -165,6 +165,8 @@ customer account (a liability increasing). Both sides are always present.
 ```
 
 ### `transaction.reversal`
+### Alice transfers to Bob
+
 
 ```json
 {
