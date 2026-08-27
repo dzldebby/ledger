@@ -1,0 +1,25 @@
+{
+  "event_id": "0f6a1c3e-9b2d-4a71-8f3c-1d2e5a7b9c04",
+  "event_type": "transaction.deposit",
+  "schema_version": 1,
+  "occurred_at": "2026-08-28T10:15:00+00:00",
+  "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+  "data": {
+    "transaction_id": "550e8400-e29b-41d4-a716-446655440000",
+    "type": "deposit",
+    "state": "posted",
+    "reversal_of_id": null,
+    "postings": [
+      {
+        "account_id": "bank-cash-uuid",
+        "side": "debit",
+        "amount_minor": 100000
+      },
+      {
+        "account_id": "alice-uuid",
+        "side": "credit",
+        "amount_minor": 100000
+      }
+    ]
+  }
+}

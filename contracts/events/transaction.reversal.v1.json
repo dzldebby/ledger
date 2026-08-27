@@ -1,0 +1,25 @@
+{
+  "event_id": "2b8c3e50-1d4f-6c93-0b5e-3f4a7c9d1e26",
+  "event_type": "transaction.reversal",
+  "schema_version": 1,
+  "occurred_at": "2026-08-28T11:02:11+00:00",
+  "traceparent": null,
+  "data": {
+    "transaction_id": "7cb8c921-0ebe-22e2-91c5-11d15fe541d9",
+    "type": "reversal",
+    "state": "posted",
+    "reversal_of_id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+    "postings": [
+      {
+        "account_id": "alice-uuid",
+        "side": "credit",
+        "amount_minor": 5000
+      },
+      {
+        "account_id": "bob-uuid",
+        "side": "debit",
+        "amount_minor": 5000
+      }
+    ]
+  }
+}

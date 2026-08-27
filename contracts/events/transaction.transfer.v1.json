@@ -1,0 +1,25 @@
+{
+  "event_id": "1a7b2d4f-0c3e-5b82-9a4d-2e3f6b8c0d15",
+  "event_type": "transaction.transfer",
+  "schema_version": 1,
+  "occurred_at": "2026-08-28T10:16:30+00:00",
+  "traceparent": null,
+  "data": {
+    "transaction_id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+    "type": "transfer",
+    "state": "posted",
+    "reversal_of_id": null,
+    "postings": [
+      {
+        "account_id": "alice-uuid",
+        "side": "debit",
+        "amount_minor": 5000
+      },
+      {
+        "account_id": "bob-uuid",
+        "side": "credit",
+        "amount_minor": 5000
+      }
+    ]
+  }
+}
