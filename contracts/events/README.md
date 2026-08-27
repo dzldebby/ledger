@@ -117,7 +117,7 @@ Two invariants a consumer can rely on:
 ## Examples
 
 ### `transaction.deposit`
-
+### Alice deposits to bank  ("bank-system-acct")
 ```json
 {
   "event_id": "0f6a1c3e-9b2d-4a71-8f3c-1d2e5a7b9c04",
