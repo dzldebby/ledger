@@ -13,11 +13,10 @@ events rather than raising anything.
 """
 import base64
 import binascii
+import json
 from datetime import datetime, timedelta, timezone
 
 import asyncpg
-
-from app.services.events import format_timestamp
 
 DEFAULT_LIMIT = 100
 MAX_LIMIT = 1000
