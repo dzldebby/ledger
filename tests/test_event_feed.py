@@ -197,18 +197,23 @@ class TestFeedBehaviour:
         assert set(event) == {"event_id", "event_type", "schema_version",
                               "occurred_at", "traceparent", "data"}
 
-    def test_caught_up_returns_an_empty_page_and_keeps_the_cursor(self, client, accounts):
-        moment = unique_past_moment()
-        transaction = deposit(client, accounts, amount=6666)
-        backdate([transaction["transaction_id"]], moment)
+    def test_caught_up_returns_an_empty_page_and_keeps_the_cursor(self, client):
+        """Reaching the end is an empty page, not an error - and the cursor
+        survives it, so a caught-up consumer can poll with the same one
+        forever."""
+        cursor = None
+        for _ in range(100):
+            body = client.get("/events", params={"cursor": cursor, "limit": 1000}).json()
+            if not body["events"]:
+                break
+            cursor = body["next_cursor"]
+        else:
+            pytest.fail("never reached the end of the feed")
 
-        first = client.get("/events", params={"cursor": cursor_just_before(moment), "limit": 1}).json()
-        # Everything after it is inside the safety window, so the next page is
-        # empty rather than an error, and the cursor is safe to reuse.
-        second = client.get("/events", params={"cursor": first["next_cursor"], "limit": 1000}).json()
+        again = client.get("/events", params={"cursor": cursor, "limit": 1000}).json()
 
-        assert second["count"] == 0
-        assert second["next_cursor"] == first["next_cursor"]
+        assert again["count"] == 0
+        assert again["next_cursor"] == cursor
 
     def test_requires_authentication(self, client):
         key = client.headers.pop("X-API-Key")
