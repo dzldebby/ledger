@@ -109,4 +109,6 @@ async def fetch_page(conn: asyncpg.Connection, cursor: str | None, limit: int):
     # the rest are still inside the safety window. A consumer polls again with
     # the cursor and gets them a moment later.
     next_cursor = encode_cursor(rows[-1]["created_at"], rows[-1]["event_id"]) if rows else cursor
-    return [row["payload"] for row in rows], next_cursor
+    # asyncpg hands back jsonb as a string; the stored value is already the
+    # complete envelope, so this is a parse, not a transformation.
+    return [json.loads(row["payload"]) for row in rows], next_cursor
