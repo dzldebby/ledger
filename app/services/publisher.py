@@ -100,13 +100,18 @@ async def publish_batch(conn: asyncpg.Connection, producer: AIOKafkaProducer, ro
         payload = json.loads(row["payload"])
         # await means we wait for the broker to acknowledge. Fire-and-forget
         # would let us mark rows published that Kafka never durably stored.
-        await producer.send_and_wait(
+        meta = await producer.send_and_wait(
             TOPIC,
             value=row["payload"].encode(),
             key=partition_key(payload),
             headers=headers_for(payload),
         )
         sent.append(row["event_id"])
+
+        data = payload["data"]
+        amount = sum(p["amount"] for p in data["postings"] if p["side"] == "debit")
+        print(f"  {payload['event_type']:<22} {data['transaction_id'][:8]}  "
+              f"{amount:>9}  ->  partition {meta.partition} offset {meta.offset}")
 
     if sent:
         await mark_published(conn, sent)
