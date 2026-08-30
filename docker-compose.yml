@@ -26,5 +26,54 @@ services:
       db:
         condition: service_healthy
 
+  # Single-broker Kafka in KRaft mode - no ZooKeeper, which stopped being
+  # required in Kafka 3.3. One container is the whole cluster: it acts as both
+  # controller (cluster metadata, leader election) and broker (holds the data).
+  kafka:
+    image: apache/kafka:3.9.0
+    ports:
+      # 29092 is the one you connect to from your own machine. 9092 is for
+      # containers on this network.
+      - "29092:29092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+
+      # Two listeners, and this is the single most common thing to get wrong
+      # with Kafka in Docker. A client's first request returns the broker's
+      # *advertised* address, and every subsequent request goes there. One
+      # advertised address cannot be correct for both a container (which must
+      # say "kafka") and your laptop (which must say "localhost") - so the
+      # broker advertises a different name on each listener.
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,PLAINTEXT_HOST://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+
+      # A single broker cannot replicate to itself, so every replication
+      # factor has to be 1. The defaults are 3 and would leave the internal
+      # topics permanently under-replicated.
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+
+  # Browse topics, partitions, consumer groups and individual messages at
+  # http://localhost:8080. Watching events land here is the fastest way to
+  # build a mental model of what the publisher is doing.
+  kafka-ui:
+    image: kafbat/kafka-ui:latest
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      DYNAMIC_CONFIG_ENABLED: "true"
+    depends_on:
+      - kafka
+
 volumes:
   postgres_data:
