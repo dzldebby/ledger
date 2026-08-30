@@ -140,13 +140,17 @@ class TestSafetyWindow:
 
         # Read the whole feed from the start; the event was created moments
         # ago and so is still inside the window.
+        #
+        # .get rather than [] because this database also holds pre-envelope
+        # rows from before the envelope existed. They are irrelevant here -
+        # the assertion is only about whether *this* event appears.
         seen = []
         cursor = None
         for _ in range(50):
             body = client.get("/events", params={"cursor": cursor, "limit": 1000}).json()
             if not body["events"]:
                 break
-            seen.extend(e["event_id"] for e in body["events"])
+            seen.extend(e.get("event_id") for e in body["events"])
             cursor = body["next_cursor"]
 
         assert event_id not in seen
