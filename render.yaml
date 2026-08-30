@@ -1,0 +1,49 @@
+# Render Blueprint - free-tier deployment of the ledger API.
+#
+# Two properties of the free plan are accepted deliberately here, not
+# oversights:
+#
+#   1. The web service spins down after 15 minutes idle, and the next request
+#      takes 30-60s while it boots. Consumers (Compliance calling
+#      /accounts/{id}/balance) must treat a slow first call as a cold start
+#      rather than a timeout. Hit /health a minute before any live demo.
+#
+#   2. The free database is deleted 30 days after creation, with a 14-day
+#      grace period. That is survivable only because this project ends inside
+#      that window. Nothing lives here that cannot be rebuilt by running the
+#      migrations again.
+#
+# Schema is applied by scripts/entrypoint.sh on boot: it takes a Postgres
+# advisory lock, runs `alembic upgrade head`, then execs uvicorn. No release
+# command or one-off job is needed, and concurrent replicas cannot race.
+
+services:
+  - name: ledger-api
+    type: web
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+
+    # Render waits for a 200 here before routing traffic to a new deploy, so a
+    # container that fails its migrations never replaces a working one.
+    healthCheckPath: /health
+
+    envVars:
+      # Wired from the database below, so the credentials never appear in this
+      # file, in the repo, or in a dashboard field anyone can read back.
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ledger-db
+          property: connectionString
+
+      # The limiter is in-memory and per-instance - a known limitation, see
+      # app/auth.py. Free plan runs a single instance, so on Render it happens
+      # to be exactly correct rather than approximate.
+      - key: RATE_LIMIT_PER_MINUTE
+        value: 1000
+
+databases:
+  - name: ledger-db
+    plan: free
+    databaseName: ledger
+    user: ledger

@@ -13,12 +13,12 @@
       {
         "account_id": "alice-uuid",
         "side": "debit",
-        "amount_minor": 5000
+        "amount": 5000
       },
       {
         "account_id": "bob-uuid",
         "side": "credit",
-        "amount_minor": 5000
+        "amount": 5000
       }
     ]
   }

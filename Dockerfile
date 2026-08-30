@@ -18,4 +18,7 @@ USER appuser
 EXPOSE 8000
 
 ENTRYPOINT ["./scripts/entrypoint.sh"]
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Shell form so ${PORT} expands at runtime: Render assigns the port and expects
+# the process to bind to it, while compose and local runs want the fixed 8000.
+# The inner `exec` keeps uvicorn as PID 1 so it still receives stop signals.
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

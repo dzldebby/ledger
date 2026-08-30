@@ -86,13 +86,15 @@ def test_event_type_identifies_the_transaction_type(client, accounts):
 
 def test_payload_carries_the_transaction_detail(client, accounts):
     txn = _deposit(client, accounts, amount=7500)
-    payload = events_for(txn["transaction_id"])[0]["payload"]
+    # Business detail lives under `data`; the envelope wraps it. The envelope
+    # itself is covered in tests/test_event_contract.py.
+    data = events_for(txn["transaction_id"])[0]["payload"]["data"]
 
-    assert payload["transaction_id"] == txn["transaction_id"]
-    assert payload["type"] == "deposit"
-    assert payload["state"] == "posted"
-    assert len(payload["postings"]) == 2
-    assert sum(p["amount_minor"] for p in payload["postings"]) == 15000
+    assert data["transaction_id"] == txn["transaction_id"]
+    assert data["type"] == "deposit"
+    assert data["state"] == "posted"
+    assert len(data["postings"]) == 2
+    assert sum(p["amount"] for p in data["postings"]) == 15000
 
 
 def test_new_event_is_unpublished(client, accounts):

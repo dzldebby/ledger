@@ -5,24 +5,90 @@
 Events describing money that has moved. Emitted by the ledger, consumed by
 compliance (and any future consumer).
 
-> **Current implementation differs.** The ledger today writes the bare
-> transaction body with no envelope. This document describes the target
-> contract; the envelope below is the change being proposed before any consumer
-> is built against the current accidental shape.
+> **Implemented and enforced.** The ledger emits exactly this envelope, and
+> `tests/test_event_contract.py` asserts its output equals the fixtures in this
+> directory field for field. A change that would break a consumer therefore
+> fails the ledger's build rather than surfacing later in someone else's
+> service.
+>
+> Still `proposed` because the *shape* has not been agreed with Compliance yet.
+> Changing it is cheap right now and a coordinated migration once a consumer
+> exists — so this is the moment to push back on it.
 
 ---
 
-## Envelope
-
-Every event has the same envelope. Business detail lives under `data`.
+## Event Envelope
 
 | Field | Type | Always present | Meaning |
 | --- | --- | --- | --- |
-| `event_id` | uuid | yes | Unique id **of this event**. The deduplication key. |
-| `event_type` | string | yes | `transaction.deposit` \| `transaction.transfer` \| `transaction.reversal` |
-| `occurred_at` | RFC 3339 | yes | When the transaction was **committed**, not when published. See below. |
-| `traceparent` | string \| null | yes (may be null) | W3C Trace Context of the originating request. See below. |
-| `data` | object | yes | Transaction detail. Shape depends on `event_type`. |
+| `event_id` | uuid | yes | Unique id of this event |
+| `event_type` | string | yes | `deposit` \| `transfer` \| `reversal` |
+| `occurred_at` | RFC 3339 | yes | When the transaction was committed. |
+| `traceparent` | string \| null | yes (may be null) | Traceparent from opentelemetry |
+| `data` | object | yes | Transaction detail. Shape depends on `event_type`, see below |
+
+### `data`
+
+| Field | Type | Always present | Meaning |
+| --- | --- | --- | --- |
+| `transaction_id` | uuid | yes | The ledger transaction. |
+| `type` | string | yes | `deposit` \| `transfer` \| `reversal` |
+| `reversal_of_id` | uuid \| null | yes | Set only on `reversal` for the transaction being reversed. |
+| `postings` | array | yes | The double-entry postings |
+
+### `postings[]`
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `account_id` | uuid | Account affected. |
+| `side` | string | `debit` or `credit`. |
+| `amount` | integer | Always positive. |
+
+## Examples
+
+### `deposit`
+### Alice deposits to bank  ("bank-system-acct")
+```json
+{
+  "event_id": "0f6a1c3e-9b2d-4a71-8f3c-1d2e5a7b9c04",
+  "event_type": "transaction.deposit",
+  "schema_version": 1,
+  "occurred_at": "2026-08-28T10:15:00+00:00",
+  "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+  "data": {
+    "transaction_id": "550e8400-e29b-41d4-a716-446655440000",
+    "type": "deposit",
+    "reversal_of_id": null,
+    "postings": [
+      {"account_id": "bank-system-acct", "side": "debit",  "amount": 100000},
+      {"account_id": "alice-acct", "side": "credit", "amount": 100000}
+    ]
+  }
+}
+```
+### `transfer`
+### Alice transfers to Bob
+
+```json
+{
+  "event_id": "1a7b2d4f-0c3e-5b82-9a4d-2e3f6b8c0d15",
+  "event_type": "transaction.transfer",
+  "schema_version": 1,
+  "occurred_at": "2026-08-28T10:16:30+00:00",
+  "traceparent": null,
+  "data": {
+    "transaction_id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+    "type": "transfer",
+    "state": "posted",
+    "reversal_of_id": null,
+    "postings": [
+      {"account_id": "alice-uuid", "side": "debit",  "amount": 5000},
+      {"account_id": "bob-uuid",   "side": "credit", "amount": 5000}
+    ]
+  }
+}
+```
+
 
 Business fields are nested under `data` deliberately: it means new envelope
 fields can be added later without any chance of colliding with a business field
@@ -88,84 +154,27 @@ Presence has nothing to do with the transaction type. The fixtures vary
 deliberately — `transaction.deposit` shows a populated value, the other two show
 `null` — purely so consumers exercise both paths.
 
-### `data`
+### Posting invariants
 
-| Field | Type | Always present | Meaning |
-| --- | --- | --- | --- |
-| `transaction_id` | uuid | yes | The ledger transaction. |
-| `type` | string | yes | `deposit` \| `transfer` \| `reversal` |
-| `state` | string | yes | Always `posted` in v1. Events are only emitted for committed transactions. |
-| `reversal_of_id` | uuid \| null | yes | Set only on `transaction.reversal`; the transaction being reversed. |
-| `postings` | array | yes | The double-entry postings. Always at least two. |
-
-### `postings[]`
-
-| Field | Type | Meaning |
-| --- | --- | --- |
-| `account_id` | uuid | Account affected. |
-| `side` | string | `debit` or `credit`. |
-| `amount_minor` | integer | Amount in **minor units** (cents). Always positive. |
-
-Two invariants a consumer can rely on:
+Two things a consumer can always rely on:
 
 - There are always **at least two postings**.
 - **Total debits equal total credits.** Direction is carried by `side`, never by
-  a negative amount — `amount_minor` is always positive.
+  a negative amount — the amount is always positive.
+
+`state` is always `posted` in v1; events are only emitted for committed
+transactions.
 
 ---
 
-## Examples
+## Examples (continued)
 
-### `transaction.deposit`
-### Alice deposits to bank  ("bank-system-acct")
-```json
-{
-  "event_id": "0f6a1c3e-9b2d-4a71-8f3c-1d2e5a7b9c04",
-  "event_type": "transaction.deposit",
-  "schema_version": 1,
-  "occurred_at": "2026-08-28T10:15:00+00:00",
-  "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
-  "data": {
-    "transaction_id": "550e8400-e29b-41d4-a716-446655440000",
-    "type": "deposit",
-    "state": "posted",
-    "reversal_of_id": null,
-    "postings": [
-      {"account_id": "bank-system-acct", "side": "debit",  "amount_minor": 100000},
-      {"account_id": "alice-acct",     "side": "credit", "amount_minor": 100000}
-    ]
-  }
-}
-```
-
-A deposit debits the bank's cash account (an asset increasing) and credits the
-customer account (a liability increasing). Both sides are always present.
-
-### `transaction.transfer`
-### Alice transfers to Bob
-
-```json
-{
-  "event_id": "1a7b2d4f-0c3e-5b82-9a4d-2e3f6b8c0d15",
-  "event_type": "transaction.transfer",
-  "schema_version": 1,
-  "occurred_at": "2026-08-28T10:16:30+00:00",
-  "traceparent": null,
-  "data": {
-    "transaction_id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
-    "type": "transfer",
-    "state": "posted",
-    "reversal_of_id": null,
-    "postings": [
-      {"account_id": "alice-uuid", "side": "debit",  "amount_minor": 5000},
-      {"account_id": "bob-uuid",   "side": "credit", "amount_minor": 5000}
-    ]
-  }
-}
-```
+In the deposit above, the bank's cash account is debited (an asset increasing)
+and the customer account credited (a liability increasing). Both sides are
+always present.
 
 ### `transaction.reversal`
-### Alice transfers to Bob
+### Reversing Alice's transfer to Bob
 
 
 ```json
@@ -181,8 +190,8 @@ customer account (a liability increasing). Both sides are always present.
     "state": "posted",
     "reversal_of_id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
     "postings": [
-      {"account_id": "alice-uuid", "side": "credit", "amount_minor": 5000},
-      {"account_id": "bob-uuid",   "side": "debit",  "amount_minor": 5000}
+      {"account_id": "alice-uuid", "side": "credit", "amount": 5000},
+      {"account_id": "bob-uuid",   "side": "debit",  "amount": 5000}
     ]
   }
 }
@@ -272,7 +281,7 @@ flag day.
 | Account balances | Point-in-time and stale the moment it is read. A consumer acting on a balance in an event would be acting on a lie. Query the ledger for current balance. |
 | Account owner / customer details | Keeps customer data out of the message bus. Ask if you need it — it is a contract change, not a workaround. |
 | The API client that made the request | Not relevant to downstream consumers; avoids leaking caller identity across services. |
-| Amounts as negative numbers | Direction is carried by `side`. A negative `amount_minor` never appears. |
+| Amounts as negative numbers | Direction is carried by `side`. A negative `amount` never appears. |
 
 If a consumer needs something in this table, raise it — the answer may well be
 yes, but adding it should be a deliberate contract change rather than a

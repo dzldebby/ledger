@@ -3,6 +3,7 @@ import json
 
 import asyncpg
 from app.schemas.transactions import DepositCreate, TransferCreate, ReversalCreate, TransactionResponse, PostingResponse
+from app.services.events import build_event
 
 
 class SameAccountError(Exception):
@@ -94,7 +95,11 @@ async def _run_idempotent(conn: asyncpg.Connection, client_scope: str, idempoten
     return response
 
 
-async def _record_outbox_event(conn: asyncpg.Connection, response: TransactionResponse) -> None:
+async def _record_outbox_event(
+    conn: asyncpg.Connection,
+    response: TransactionResponse,
+    traceparent: str | None = None,
+) -> None:
     """Writes the transactional-outbox row for a transaction just posted.
 
     Called from inside _run_idempotent's transaction, so the event commits
@@ -105,12 +110,21 @@ async def _record_outbox_event(conn: asyncpg.Connection, response: TransactionRe
 
     A replayed idempotency key returns the cached response without reaching
     here, so a retry does not produce a duplicate event.
+
+    `payload` holds the *complete* envelope rather than just the business body,
+    so the stored row is exactly what a consumer receives and the publisher is
+    a plain `SELECT payload`. event_id, event_type and traceparent are also
+    written to their own columns for querying and indexing; every one of them
+    is taken from the same built dict, so a column can never disagree with the
+    payload it projects.
     """
+    event = build_event(response, traceparent=traceparent)
+
     await conn.execute("""
-        INSERT INTO outbox_events (transaction_id, event_type, payload)
-        VALUES ($1::uuid, $2, $3::jsonb)
-    """, response.transaction_id, f"transaction.{response.type}",
-         json.dumps(response.model_dump()))
+        INSERT INTO outbox_events (event_id, transaction_id, event_type, payload, traceparent)
+        VALUES ($1::uuid, $2::uuid, $3, $4::jsonb, $5)
+    """, event["event_id"], response.transaction_id, event["event_type"],
+         json.dumps(event), event["traceparent"])
 
 
 async def _execute_deposit(conn: asyncpg.Connection, data: DepositCreate) -> TransactionResponse:

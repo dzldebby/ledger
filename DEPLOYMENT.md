@@ -1,8 +1,74 @@
 # Deployment
 
-The ledger runs on AWS Lightsail: a Container Service fronting a private
+> ## Current target: Render free tier. The AWS section below is dormant.
+>
+> The Lightsail stack has been destroyed. No AWS resources exist and nothing is
+> being billed there. Everything from `## Running on AWS Lightsail` down is kept
+> as a working runbook, not as a description of what is live.
+
+## Running on Render (current)
+
+`render.yaml` is a Blueprint describing the whole environment: a Docker web
+service on the free plan and a free Postgres, with `DATABASE_URL` wired from
+the database into the service so credentials never appear in the repo or in a
+dashboard field.
+
+### First deploy
+
+1. Push this repo to GitHub.
+2. Render dashboard → **New → Blueprint** → pick the repo. It reads
+   `render.yaml` and creates both the service and the database.
+3. Wait for the first build. On boot, `scripts/entrypoint.sh` takes a Postgres
+   advisory lock, runs `alembic upgrade head` and then starts uvicorn, so the
+   schema builds itself — there is no separate migration step.
+4. `curl https://<service>.onrender.com/health` → `{"status":"ok"}`.
+
+Subsequent pushes to the default branch redeploy automatically.
+
+### Provisioning an API key
+
+Render's database is reachable from outside, unlike the Lightsail one. That
+removes the entire provisioner-sidecar dance the AWS setup needed — copy the
+**External Database URL** from the Render dashboard and run the script from
+your own machine:
+
+PowerShell:
+
+```powershell
+$env:DATABASE_URL = "<external url from dashboard>"
+python scripts/create_client.py demo
+```
+
+Git Bash:
+
+```sh
+DATABASE_URL="<external url from dashboard>" python scripts/create_client.py demo
+```
+
+Copy the **External** URL, not the Internal one — the internal hostname only
+resolves from inside Render. It already carries the SSL parameters both drivers
+need.
+
+The key is generated locally and only its SHA-256 hash reaches the database, so
+the plaintext key never exists anywhere but your terminal.
+
+### Two free-plan limits that are real
+
+- **The service spins down after 15 minutes idle.** The next request takes
+  30–60 seconds while it boots. Tell consumers to treat a slow first call as a
+  cold start, not a timeout, and hit `/health` a minute before any live demo.
+- **The free database is deleted 30 days after creation** (plus a 14-day
+  grace period). Nothing is stored here that `alembic upgrade head` cannot
+  rebuild, but it does mean the data is not durable past that window.
+
+---
+
+## Running on AWS Lightsail (dormant)
+
+The ledger *ran* on AWS Lightsail: a Container Service fronting a private
 Postgres database, with images stored in ECR. All infrastructure is managed by
-Terraform in `terraform/`.
+Terraform in `terraform/`, which is intact — a single `terraform apply` brings
+it back.
 
 - **Live URL:** the `container_service_url` output from `terraform output`
 - **AWS account:** 302127759466, region `us-east-1`
@@ -23,7 +89,10 @@ separate stack and is *not* destroyed between sessions.
 
 ## How code reaches production
 
-Merging to `main` deploys automatically. No manual step is required.
+**Not currently wired up.** `cd.yml` was deleted along with the hosted
+environment; merging to `main` now runs CI and stops there. The design below is
+kept because restoring it is a matter of recreating the file, and because the
+reasoning is the part worth keeping.
 
 ```
 push to main -> CI (ci.yml)  -> tests against a Postgres service container
@@ -34,7 +103,7 @@ push to main -> CI (ci.yml)  -> tests against a Postgres service container
                              -> smoke test /health, fail the job on non-200
 ```
 
-`cd.yml` is triggered by `workflow_run` on CI completion rather than by `push`,
+`cd.yml` was triggered by `workflow_run` on CI completion rather than by `push`,
 so a failing test suite can never deploy. It checks out
 `github.event.workflow_run.head_sha` — `workflow_run` jobs otherwise run
 against the tip of the default branch, which is not necessarily the commit CI

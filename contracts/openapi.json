@@ -1,0 +1,668 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "Ledger API",
+        "version": "0.1.0"
+    },
+    "paths": {
+        "/accounts": {
+            "post": {
+                "tags": [
+                    "accounts"
+                ],
+                "summary": "Create Account Endpoint",
+                "operationId": "create_account_endpoint_accounts_post",
+                "parameters": [
+                    {
+                        "name": "X-API-Key",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "X-Api-Key"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AccountCreate"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AccountResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "get": {
+                "tags": [
+                    "accounts"
+                ],
+                "summary": "List Accounts Endpoint",
+                "operationId": "list_accounts_endpoint_accounts_get",
+                "parameters": [
+                    {
+                        "name": "X-API-Key",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "X-Api-Key"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/AccountResponse"
+                                    },
+                                    "title": "Response List Accounts Endpoint Accounts Get"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/accounts/{account_id}/balance": {
+            "get": {
+                "tags": [
+                    "accounts"
+                ],
+                "summary": "Get Balance Endpoint",
+                "operationId": "get_balance_endpoint_accounts__account_id__balance_get",
+                "parameters": [
+                    {
+                        "name": "account_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Account Id"
+                        }
+                    },
+                    {
+                        "name": "X-API-Key",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "X-Api-Key"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/BalanceResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/transactions/deposit": {
+            "post": {
+                "tags": [
+                    "transactions"
+                ],
+                "summary": "Create Deposit Endpoint",
+                "operationId": "create_deposit_endpoint_transactions_deposit_post",
+                "parameters": [
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Idempotency-Key"
+                        }
+                    },
+                    {
+                        "name": "X-API-Key",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "X-Api-Key"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/DepositCreate"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TransactionResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/transactions/{transaction_id}/reverse": {
+            "post": {
+                "tags": [
+                    "transactions"
+                ],
+                "summary": "Create Reversal Endpoint",
+                "operationId": "create_reversal_endpoint_transactions__transaction_id__reverse_post",
+                "parameters": [
+                    {
+                        "name": "transaction_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Transaction Id"
+                        }
+                    },
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Idempotency-Key"
+                        }
+                    },
+                    {
+                        "name": "X-API-Key",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "X-Api-Key"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TransactionResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/transactions/transfer": {
+            "post": {
+                "tags": [
+                    "transactions"
+                ],
+                "summary": "Create Transfer Endpoint",
+                "operationId": "create_transfer_endpoint_transactions_transfer_post",
+                "parameters": [
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Idempotency-Key"
+                        }
+                    },
+                    {
+                        "name": "X-API-Key",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "X-Api-Key"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/TransferCreate"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TransactionResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/outbox/stats": {
+            "get": {
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Outbox Stats Endpoint",
+                "description": "Aggregate outbox counts, for checking the outbox in a deployment where\nthe database cannot be reached directly.",
+                "operationId": "outbox_stats_endpoint_admin_outbox_stats_get",
+                "parameters": [
+                    {
+                        "name": "X-API-Key",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "X-Api-Key"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OutboxStats"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/health": {
+            "get": {
+                "summary": "Health",
+                "operationId": "health_health_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "AccountCreate": {
+                "properties": {
+                    "owner_id": {
+                        "type": "string",
+                        "title": "Owner Id"
+                    },
+                    "account_type": {
+                        "type": "string",
+                        "title": "Account Type"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "owner_id",
+                    "account_type"
+                ],
+                "title": "AccountCreate"
+            },
+            "AccountResponse": {
+                "properties": {
+                    "account_id": {
+                        "type": "string",
+                        "title": "Account Id"
+                    },
+                    "owner_id": {
+                        "type": "string",
+                        "title": "Owner Id"
+                    },
+                    "account_type": {
+                        "type": "string",
+                        "title": "Account Type"
+                    },
+                    "status": {
+                        "type": "string",
+                        "title": "Status"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "account_id",
+                    "owner_id",
+                    "account_type",
+                    "status"
+                ],
+                "title": "AccountResponse"
+            },
+            "BalanceResponse": {
+                "properties": {
+                    "account_id": {
+                        "type": "string",
+                        "title": "Account Id"
+                    },
+                    "balance_minor": {
+                        "type": "integer",
+                        "title": "Balance Minor"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "account_id",
+                    "balance_minor"
+                ],
+                "title": "BalanceResponse"
+            },
+            "DepositCreate": {
+                "properties": {
+                    "account_id": {
+                        "type": "string",
+                        "title": "Account Id"
+                    },
+                    "cash_account_id": {
+                        "type": "string",
+                        "title": "Cash Account Id"
+                    },
+                    "amount_minor": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0.0,
+                        "title": "Amount Minor"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "account_id",
+                    "cash_account_id",
+                    "amount_minor"
+                ],
+                "title": "DepositCreate"
+            },
+            "HTTPValidationError": {
+                "properties": {
+                    "detail": {
+                        "items": {
+                            "$ref": "#/components/schemas/ValidationError"
+                        },
+                        "type": "array",
+                        "title": "Detail"
+                    }
+                },
+                "type": "object",
+                "title": "HTTPValidationError"
+            },
+            "OutboxStats": {
+                "properties": {
+                    "total_events": {
+                        "type": "integer",
+                        "title": "Total Events"
+                    },
+                    "unpublished_events": {
+                        "type": "integer",
+                        "title": "Unpublished Events"
+                    },
+                    "events_by_type": {
+                        "additionalProperties": {
+                            "type": "integer"
+                        },
+                        "type": "object",
+                        "title": "Events By Type"
+                    },
+                    "newest_event_at": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Newest Event At"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "total_events",
+                    "unpublished_events",
+                    "events_by_type"
+                ],
+                "title": "OutboxStats"
+            },
+            "PostingResponse": {
+                "properties": {
+                    "account_id": {
+                        "type": "string",
+                        "title": "Account Id"
+                    },
+                    "side": {
+                        "type": "string",
+                        "title": "Side"
+                    },
+                    "amount_minor": {
+                        "type": "integer",
+                        "title": "Amount Minor"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "account_id",
+                    "side",
+                    "amount_minor"
+                ],
+                "title": "PostingResponse"
+            },
+            "TransactionResponse": {
+                "properties": {
+                    "transaction_id": {
+                        "type": "string",
+                        "title": "Transaction Id"
+                    },
+                    "type": {
+                        "type": "string",
+                        "title": "Type"
+                    },
+                    "state": {
+                        "type": "string",
+                        "title": "State"
+                    },
+                    "postings": {
+                        "items": {
+                            "$ref": "#/components/schemas/PostingResponse"
+                        },
+                        "type": "array",
+                        "title": "Postings"
+                    },
+                    "reversal_of_id": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Reversal Of Id"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "transaction_id",
+                    "type",
+                    "state",
+                    "postings"
+                ],
+                "title": "TransactionResponse"
+            },
+            "TransferCreate": {
+                "properties": {
+                    "from_account_id": {
+                        "type": "string",
+                        "title": "From Account Id"
+                    },
+                    "to_account_id": {
+                        "type": "string",
+                        "title": "To Account Id"
+                    },
+                    "amount_minor": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0.0,
+                        "title": "Amount Minor"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "from_account_id",
+                    "to_account_id",
+                    "amount_minor"
+                ],
+                "title": "TransferCreate"
+            },
+            "ValidationError": {
+                "properties": {
+                    "loc": {
+                        "items": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "integer"
+                                }
+                            ]
+                        },
+                        "type": "array",
+                        "title": "Location"
+                    },
+                    "msg": {
+                        "type": "string",
+                        "title": "Message"
+                    },
+                    "type": {
+                        "type": "string",
+                        "title": "Error Type"
+                    },
+                    "input": {
+                        "title": "Input"
+                    },
+                    "ctx": {
+                        "type": "object",
+                        "title": "Context"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "loc",
+                    "msg",
+                    "type"
+                ],
+                "title": "ValidationError"
+            }
+        }
+    }
+}
