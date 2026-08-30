@@ -4,7 +4,9 @@
       "WebFetch(domain:galaindev.github.io)",
       "PowerShell(Get-Process *)",
       "PowerShell(Start-Process python -ArgumentList \"C:/Users/Debby/.claude/skills/auto-commit/auto-commit.py\", \"C:/Users/Debby/Documents/ledger\" -WindowStyle Normal)",
-      "PowerShell(docker exec ledger-db-1 *)"
+      "PowerShell(docker exec ledger-db-1 *)",
+      "Bash(export KAFKA_BOOTSTRAP_SERVERS=\"localhost:29092\")",
+      "Bash(timeout 15 python -u contracts/example_consumer.py)"
     ]
   }
 }
