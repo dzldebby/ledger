@@ -74,6 +74,10 @@ async def main():
         group_id=None,
     )
     await consumer.start()
+    # A poll first, because seek_to_end has nothing to seek until partitions
+    # are actually assigned. Skipping this makes the seek a silent no-op and
+    # the script would then match an old message and prove nothing.
+    await consumer.getmany(timeout_ms=1000)
     await consumer.seek_to_end()
     print(f"watching {TOPIC} at {BOOTSTRAP} for new messages\n")
 
