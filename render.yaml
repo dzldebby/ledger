@@ -24,6 +24,18 @@ services:
     plan: free
     dockerfilePath: ./Dockerfile
 
+    # Deploy on demand, not on every push.
+    #
+    # The auto-commit watcher commits after 3 seconds of quiet, which produced
+    # ~24 pushes in one day. At roughly 3 build-minutes each that is ~2,100
+    # minutes a month against a 500-minute free allowance - which means either
+    # a suspended service (no payment method) or about $8/month (with one),
+    # in exchange for deploying half-finished edits.
+    #
+    # Deploy from the Render dashboard when there is something worth
+    # deploying: service -> Manual Deploy -> Deploy latest commit.
+    autoDeploy: false
+
     # Render waits for a 200 here before routing traffic to a new deploy, so a
     # container that fails its migrations never replaces a working one.
     healthCheckPath: /health
