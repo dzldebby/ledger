@@ -10,8 +10,23 @@ Once we agree, this becomes the living contract and changes go through PR.
 
 The ledger core is built and deployed: accounts, deposits, transfers,
 reversals, double-entry postings, pessimistic row-locking, idempotency, and API
-key auth. Its OpenAPI spec is served at `/openapi.json` and browsable at
-`/docs`.
+key auth.
+
+**Base URL: `https://ledger-api-8i8i.onrender.com`**
+
+- `/docs` — browsable API
+- `/openapi.json` — machine-readable spec, also committed here as
+  `contracts/openapi.json` so you can generate a client without the service
+  being up
+
+Every endpoint except `/health` needs an `X-API-Key` header. Ask me for a key.
+
+**Two things about this host, so you don't file them as bugs.** It is a free
+instance: it spins down after 15 minutes idle, so the *first* request after a
+quiet period can take 30–60 seconds. Treat a slow first call as a cold start,
+not a timeout. And the database is deleted 30 days after creation, which is
+past the end of this project — but it means nothing stored here is durable, and
+any data you rely on for a demo should be re-createable from the API.
 
 Two boundaries connect our components:
 
