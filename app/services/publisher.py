@@ -140,8 +140,7 @@ async def run(database_url: str | None = None) -> None:
         while True:
             rows = await fetch_unpublished(conn, BATCH_SIZE)
             if rows:
-                count = await publish_batch(conn, producer, rows)
-                print(f"  published {count}")
+                await publish_batch(conn, producer, rows)
             await asyncio.sleep(POLL_SECONDS)
     finally:
         await producer.stop()
