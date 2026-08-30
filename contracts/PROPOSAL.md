@@ -208,9 +208,26 @@ rather than discovering later.
 
 ### 4. Broker choice and ownership
 
-**Proposed: SQS, with the ledger owning the Terraform** since it is the
-producer. If more consumers appear later, SNS with per-consumer queues would be
-better — worth knowing now if that is likely.
+**Decided: Kafka, with the ledger owning the publisher.** Events go to a single
+topic, `ledger.events`.
+
+- **Value** is the complete envelope as JSON — self-contained, so an archived
+  or replayed copy is still a whole event.
+- **Headers** carry `event_id`, `event_type` and `schema_version`, so a router
+  can dispatch or deduplicate without deserializing the body.
+- **Key** is `reversal_of_id or transaction_id`. Kafka only orders within a
+  partition and the key picks the partition, so a reversal deliberately lands
+  on the same partition as the transaction it reverses. Treat that as best
+  effort, not a guarantee — the ordering caveat above still applies.
+
+Run it locally with `docker compose up kafka kafka-ui`; the UI at
+`localhost:8080` shows topics and individual messages. For a demo where all
+three services run on different machines we need one shared cluster, since a
+broker in your Docker is a separate, empty broker — see DEPLOYMENT.md.
+
+**Still open:** whether the shared cluster is Confluent Cloud (free credits
+cover our remaining window) or one of us exposing a broker on the LAN. That
+only needs deciding before the first joint demo, not before you start building.
 
 ---
 
