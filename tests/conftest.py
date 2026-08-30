@@ -74,6 +74,22 @@ def db_rows(sql, params=None):
         conn.close()
 
 
+def db_execute(sql, params=None):
+    """Runs a write against the test database.
+
+    Lets a test set up state the API cannot produce on demand - notably
+    forcing several outbox rows to an identical created_at, which is what the
+    feed's tie-breaking has to cope with.
+    """
+    conn = psycopg2.connect(TEST_DATABASE_URL)
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, params or ())
+    finally:
+        conn.close()
+
+
 @pytest.fixture(scope="session")
 def client():
     api_key = provision_api_client("test-client")
