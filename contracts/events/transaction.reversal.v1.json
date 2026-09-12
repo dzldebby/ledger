@@ -4,6 +4,7 @@
   "schema_version": 1,
   "occurred_at": "2026-08-28T11:02:11+00:00",
   "traceparent": null,
+  "correlation_id": "corr-reversal-001",
   "data": {
     "transaction_id": "7cb8c921-0ebe-22e2-91c5-11d15fe541d9",
     "type": "reversal",

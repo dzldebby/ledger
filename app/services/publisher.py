@@ -15,10 +15,46 @@ contracts/events/README.md for what consumers must do about it.
 """
 import asyncio
 import json
+import logging
 import os
+import time
 
 import asyncpg
 from aiokafka import AIOKafkaProducer
+from opentelemetry import metrics, trace
+from opentelemetry.metrics import Observation
+from opentelemetry.propagate import extract, inject
+from opentelemetry.trace import SpanKind
+
+from app.telemetry import configure_telemetry, correlation_id_var
+
+logger = logging.getLogger(__name__)
+tracer = trace.get_tracer("outbox-publisher")
+meter = metrics.get_meter("outbox-publisher")
+published_counter = meter.create_counter("outbox.events.published")
+publish_duration = meter.create_histogram("outbox.publish.duration", unit="ms")
+backlog_histogram = meter.create_histogram("outbox.backlog")
+oldest_age_histogram = meter.create_histogram("outbox.oldest_unpublished.age", unit="s")
+_backlog_value = 0
+_oldest_age_value = 0.0
+
+
+def _observe_backlog_value(options):
+    return [Observation(_backlog_value)]
+
+
+def _observe_oldest_age_value(options):
+    return [Observation(_oldest_age_value)]
+
+
+meter.create_observable_gauge(
+    "outbox.backlog.current", callbacks=[_observe_backlog_value]
+)
+meter.create_observable_gauge(
+    "outbox.oldest_unpublished.current_age",
+    callbacks=[_observe_oldest_age_value],
+    unit="s",
+)
 
 TOPIC = os.getenv("KAFKA_TOPIC", "ledger.events")
 BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:29092")
@@ -55,11 +91,17 @@ def headers_for(payload: dict) -> list[tuple[str, bytes]]:
     dispatch on event_type, or drop a duplicate event_id, without paying to
     deserialize the body first.
     """
-    return [
+    carrier = {}
+    inject(carrier)
+    headers = [
         ("event_id", payload["event_id"].encode()),
         ("event_type", payload["event_type"].encode()),
         ("schema_version", str(payload["schema_version"]).encode()),
+        ("correlation_id", payload["correlation_id"].encode()),
     ]
+    if carrier.get("traceparent"):
+        headers.append(("traceparent", carrier["traceparent"].encode()))
+    return headers
 
 
 async def fetch_unpublished(conn: asyncpg.Connection, limit: int):
@@ -76,6 +118,19 @@ async def mark_published(conn: asyncpg.Connection, event_ids) -> None:
         UPDATE outbox_events SET published_at = NOW()
         WHERE event_id = ANY($1::uuid[])
     """, event_ids)
+
+
+async def observe_backlog(conn: asyncpg.Connection) -> None:
+    global _backlog_value, _oldest_age_value
+    row = await conn.fetchrow("""
+        SELECT count(*) AS backlog,
+               EXTRACT(EPOCH FROM clock_timestamp() - min(created_at)) AS oldest_age
+        FROM outbox_events WHERE published_at IS NULL
+    """)
+    _backlog_value = row["backlog"]
+    _oldest_age_value = float(row["oldest_age"] or 0)
+    backlog_histogram.record(_backlog_value)
+    oldest_age_histogram.record(_oldest_age_value)
 
 
 async def publish_batch(conn: asyncpg.Connection, producer: AIOKafkaProducer, rows) -> int:
@@ -98,20 +153,38 @@ async def publish_batch(conn: asyncpg.Connection, producer: AIOKafkaProducer, ro
     sent = []
     for row in rows:
         payload = json.loads(row["payload"])
-        # await means we wait for the broker to acknowledge. Fire-and-forget
-        # would let us mark rows published that Kafka never durably stored.
-        meta = await producer.send_and_wait(
-            TOPIC,
-            value=row["payload"].encode(),
-            key=partition_key(payload),
-            headers=headers_for(payload),
-        )
+        carrier = {}
+        if payload.get("traceparent"):
+            carrier["traceparent"] = payload["traceparent"]
+        parent_context = extract(carrier)
+        token = correlation_id_var.set(payload.get("correlation_id"))
+        started = time.perf_counter()
+        try:
+            with tracer.start_as_current_span(
+                "outbox.publish", context=parent_context, kind=SpanKind.PRODUCER
+            ) as span:
+                span.set_attribute("messaging.destination.name", TOPIC)
+                span.set_attribute("messaging.message.id", payload["event_id"])
+                meta = await producer.send_and_wait(
+                    TOPIC,
+                    value=row["payload"].encode(),
+                    key=partition_key(payload),
+                    headers=headers_for(payload),
+                )
+                span.set_attribute("messaging.kafka.partition", meta.partition)
+        finally:
+            correlation_id_var.reset(token)
+            publish_duration.record((time.perf_counter() - started) * 1000)
         sent.append(row["event_id"])
+        published_counter.add(1, {"event_type": payload["event_type"]})
 
         data = payload["data"]
         amount = sum(p["amount"] for p in data["postings"] if p["side"] == "debit")
-        print(f"  {payload['event_type']:<22} {data['transaction_id'][:8]}  "
-              f"{amount:>9}  ->  partition {meta.partition} offset {meta.offset}")
+        logger.info(
+            "published event_type=%s transaction_id=%s amount_minor=%s partition=%s offset=%s",
+            payload["event_type"], data["transaction_id"], amount,
+            meta.partition, meta.offset,
+        )
 
     if sent:
         await mark_published(conn, sent)
@@ -120,6 +193,7 @@ async def publish_batch(conn: asyncpg.Connection, producer: AIOKafkaProducer, ro
 
 async def run(database_url: str | None = None) -> None:
     """Polls the outbox forever. Stop with Ctrl-C."""
+    configure_telemetry("outbox-publisher")
     database_url = database_url or os.getenv("DATABASE_URL")
     if not database_url:
         raise RuntimeError("DATABASE_URL is not set")
@@ -134,13 +208,17 @@ async def run(database_url: str | None = None) -> None:
         enable_idempotence=True,
     )
     await producer.start()
-    print(f"publisher: {BOOTSTRAP_SERVERS} -> topic '{TOPIC}', polling every {POLL_SECONDS}s")
+    logger.info(
+        "publisher connected brokers=%s topic=%s poll_seconds=%s",
+        BOOTSTRAP_SERVERS, TOPIC, POLL_SECONDS,
+    )
 
     try:
         while True:
             rows = await fetch_unpublished(conn, BATCH_SIZE)
             if rows:
                 await publish_batch(conn, producer, rows)
+            await observe_backlog(conn)
             await asyncio.sleep(POLL_SECONDS)
     finally:
         await producer.stop()

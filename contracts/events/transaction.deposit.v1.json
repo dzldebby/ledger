@@ -4,6 +4,7 @@
   "schema_version": 1,
   "occurred_at": "2026-08-28T10:15:00+00:00",
   "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+  "correlation_id": "corr-deposit-001",
   "data": {
     "transaction_id": "550e8400-e29b-41d4-a716-446655440000",
     "type": "deposit",

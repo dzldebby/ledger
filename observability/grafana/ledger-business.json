@@ -1,0 +1,53 @@
+{
+  "id": null,
+  "uid": "ledger-business-behavior",
+  "title": "Ledger Business Behavior",
+  "tags": ["ledger", "business"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": {"from": "now-1h", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Ledger commands by outcome",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "expr": "sum by (operation, outcome) (rate(ledger_commands_total[5m]))", "legendFormat": "{{operation}} / {{outcome}}"}],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Risk decisions",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "expr": "sum by (state) (rate(risk_decisions_total[5m]))", "legendFormat": "{{state}}"}],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Outbox backlog observations",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "expr": "max(outbox_backlog_current)", "legendFormat": "current backlog"}],
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8}
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Compliance alerts",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "expr": "sum by (rule, severity) (rate(compliance_alerts_total[5m]))", "legendFormat": "{{rule}} / {{severity}}"}],
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 8}
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Settlement outcomes",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "expr": "sum by (outcome) (rate(ledger_settlements_total[5m]))", "legendFormat": "{{outcome}}"}],
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8}
+    }
+  ]
+}

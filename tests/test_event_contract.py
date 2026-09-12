@@ -50,6 +50,7 @@ DEPOSIT = (
     "0f6a1c3e-9b2d-4a71-8f3c-1d2e5a7b9c04",
     datetime(2026, 8, 28, 10, 15, 0, tzinfo=timezone.utc),
     "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+    "corr-deposit-001",
 )
 
 TRANSFER = (
@@ -67,6 +68,7 @@ TRANSFER = (
     "1a7b2d4f-0c3e-5b82-9a4d-2e3f6b8c0d15",
     datetime(2026, 8, 28, 10, 16, 30, tzinfo=timezone.utc),
     None,
+    "corr-transfer-001",
 )
 
 REVERSAL = (
@@ -86,15 +88,40 @@ REVERSAL = (
     "2b8c3e50-1d4f-6c93-0b5e-3f4a7c9d1e26",
     datetime(2026, 8, 28, 11, 2, 11, tzinfo=timezone.utc),
     None,
+    "corr-reversal-001",
 )
 
-CASES = [DEPOSIT, TRANSFER, REVERSAL]
+SETTLEMENT = (
+    "transaction.settlement.v1.json",
+    TransactionResponse(
+        transaction_id="8dc9da32-1fcf-33f3-a2d6-22e26af652e0",
+        type="settlement",
+        state="posted",
+        reversal_of_id=None,
+        postings=[
+            posting("merchant-uuid", "debit", 75000),
+            posting("external-bank-uuid", "credit", 75000),
+        ],
+    ),
+    "3c9d4e61-2e5f-7da4-1c6f-4a5b8d0e2f37",
+    datetime(2026, 8, 28, 23, 59, 59, tzinfo=timezone.utc),
+    None,
+    "corr-settlement-001",
+)
+
+CASES = [DEPOSIT, TRANSFER, REVERSAL, SETTLEMENT]
 CASE_IDS = [case[0] for case in CASES]
 
 
-@pytest.mark.parametrize("name,response,event_id,occurred_at,traceparent", CASES, ids=CASE_IDS)
-def test_emitted_event_matches_the_published_fixture(name, response, event_id, occurred_at, traceparent):
-    event = build_event(response, event_id=event_id, occurred_at=occurred_at, traceparent=traceparent)
+@pytest.mark.parametrize("name,response,event_id,occurred_at,traceparent,correlation_id", CASES, ids=CASE_IDS)
+def test_emitted_event_matches_the_published_fixture(name, response, event_id, occurred_at, traceparent, correlation_id):
+    event = build_event(
+        response,
+        event_id=event_id,
+        occurred_at=occurred_at,
+        traceparent=traceparent,
+        correlation_id=correlation_id,
+    )
     assert event == load_fixture(name)
 
 
@@ -169,7 +196,10 @@ class TestEnvelopeInvariants:
         """Nothing from the transaction body may leak into the envelope, or a
         future envelope field could collide with it."""
         event = build_event(TRANSFER[1])
-        assert set(event) == {"event_id", "event_type", "schema_version", "occurred_at", "traceparent", "data"}
+        assert set(event) == {
+            "event_id", "event_type", "schema_version", "occurred_at",
+            "traceparent", "correlation_id", "data",
+        }
 
 
 def test_a_real_deposit_emits_the_contracted_envelope(client):
@@ -198,6 +228,7 @@ def test_a_real_deposit_emits_the_contracted_envelope(client):
     assert payload["event_type"] == "transaction.deposit"
     assert payload["schema_version"] == 1
     assert payload["traceparent"] is None
+    assert payload["correlation_id"]
     assert payload["data"]["transaction_id"] == txn["transaction_id"]
     assert payload["data"]["state"] == "posted"
     assert sum(p["amount"] for p in payload["data"]["postings"]) == 15000
@@ -208,6 +239,7 @@ def test_a_real_deposit_emits_the_contracted_envelope(client):
     assert str(row["event_id"]) == payload["event_id"]
     assert row["event_type"] == payload["event_type"]
     assert row["traceparent"] == payload["traceparent"]
+    assert row["correlation_id"] == payload["correlation_id"]
 
     # occurred_at must parse with a strict RFC 3339 reader
     assert datetime.fromisoformat(payload["occurred_at"]).tzinfo is not None

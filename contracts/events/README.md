@@ -22,9 +22,10 @@ compliance (and any future consumer).
 | Field | Type | Always present | Meaning |
 | --- | --- | --- | --- |
 | `event_id` | uuid | yes | Unique id of this event |
-| `event_type` | string | yes | `deposit` \| `transfer` \| `reversal` |
+| `event_type` | string | yes | `transaction.deposit` \| `transaction.transfer` \| `transaction.reversal` \| `transaction.settlement` |
 | `occurred_at` | RFC 3339 | yes | When the transaction was committed. |
 | `traceparent` | string \| null | yes (may be null) | Traceparent from opentelemetry |
+| `correlation_id` | string | yes | Stable business/request correlation identifier |
 | `data` | object | yes | Transaction detail. Shape depends on `event_type`, see below |
 
 ### `data`
@@ -32,7 +33,7 @@ compliance (and any future consumer).
 | Field | Type | Always present | Meaning |
 | --- | --- | --- | --- |
 | `transaction_id` | uuid | yes | The ledger transaction. |
-| `type` | string | yes | `deposit` \| `transfer` \| `reversal` |
+| `type` | string | yes | `deposit` \| `transfer` \| `reversal` \| `settlement` |
 | `reversal_of_id` | uuid \| null | yes | Set only on `reversal` for the transaction being reversed. |
 | `postings` | array | yes | The double-entry postings |
 
@@ -55,6 +56,7 @@ compliance (and any future consumer).
   "schema_version": 1,
   "occurred_at": "2026-08-28T10:15:00+00:00",
   "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+  "correlation_id": "corr-deposit-001",
   "data": {
     "transaction_id": "550e8400-e29b-41d4-a716-446655440000",
     "type": "deposit",
@@ -76,6 +78,7 @@ compliance (and any future consumer).
   "schema_version": 1,
   "occurred_at": "2026-08-28T10:16:30+00:00",
   "traceparent": null,
+  "correlation_id": "corr-transfer-001",
   "data": {
     "transaction_id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
     "type": "transfer",
@@ -146,13 +149,13 @@ one trace.
 the caller sent no `traceparent` header, when the transaction was started by an
 internal job rather than an HTTP request, or when tracing is not enabled.
 
-**Today it is always null** — the ledger does not yet propagate trace context.
-Consumers must handle null from the start; treat a populated value as a bonus,
-never a guarantee.
+The ledger now propagates trace context when instrumentation is enabled.
+Consumers must still handle null because internal jobs or uninstrumented callers
+may legitimately start a transaction without an inbound trace.
 
 Presence has nothing to do with the transaction type. The fixtures vary
-deliberately — `transaction.deposit` shows a populated value, the other two show
-`null` — purely so consumers exercise both paths.
+deliberately — `transaction.deposit` shows a populated value while other
+fixtures use `null` — purely so consumers exercise both paths.
 
 ### Posting invariants
 
@@ -184,6 +187,7 @@ always present.
   "schema_version": 1,
   "occurred_at": "2026-08-28T11:02:11+00:00",
   "traceparent": null,
+  "correlation_id": "corr-reversal-001",
   "data": {
     "transaction_id": "7cb8c921-0ebe-22e2-91c5-11d15fe541d9",
     "type": "reversal",
@@ -292,8 +296,8 @@ callback into the ledger, which would make the dependency circular.
 ## Fixtures
 
 `transaction.deposit.v1.json`, `transaction.transfer.v1.json`,
-`transaction.reversal.v1.json` in this directory are the examples above as
-files.
+`transaction.reversal.v1.json`, and `transaction.settlement.v1.json` in this
+directory are executable examples.
 
 Consumers can build and test against these with no ledger running. The ledger
 asserts its emitted events match them, so a breaking change fails the

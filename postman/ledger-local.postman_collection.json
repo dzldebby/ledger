@@ -1,0 +1,107 @@
+{
+  "info": {
+    "name": "Ledger Local End-to-End",
+    "description": "Exercises ledger posting, safe retry, history, risk, compliance, settlement, and correlation IDs.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      {"key": "key", "value": "X-API-Key", "type": "string"},
+      {"key": "value", "value": "{{apiKey}}", "type": "string"},
+      {"key": "in", "value": "header", "type": "string"}
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "exec": [
+          "pm.variables.set('correlationId', pm.variables.replaceIn('{{$guid}}'));",
+          "pm.variables.set('idempotencyKey', pm.variables.replaceIn('{{$guid}}'));"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": {"auth": {"type": "noauth"}, "method": "GET", "url": "{{ledgerUrl}}/health"},
+      "event": [{"listen": "test", "script": {"exec": ["pm.test('healthy', () => pm.response.to.have.status(200));"]}}]
+    },
+    {
+      "name": "Create cash account",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}, {"key": "X-Correlation-ID", "value": "{{correlationId}}"}],
+        "body": {"mode": "raw", "raw": "{\"owner_id\":\"bank-cash-{{$guid}}\",\"account_type\":\"cash\"}"},
+        "url": "{{ledgerUrl}}/accounts"
+      },
+      "event": [{"listen": "test", "script": {"exec": ["pm.test('created', () => pm.response.to.have.status(201));", "pm.environment.set('cashAccountId', pm.response.json().account_id);"]}}]
+    },
+    {
+      "name": "Create Alice",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}, {"key": "X-Correlation-ID", "value": "{{correlationId}}"}],
+        "body": {"mode": "raw", "raw": "{\"owner_id\":\"alice-{{$guid}}\",\"account_type\":\"personal\"}"},
+        "url": "{{ledgerUrl}}/accounts"
+      },
+      "event": [{"listen": "test", "script": {"exec": ["pm.environment.set('aliceAccountId', pm.response.json().account_id);"]}}]
+    },
+    {
+      "name": "Create Bob",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\"owner_id\":\"bob-{{$guid}}\",\"account_type\":\"personal\"}"},
+        "url": "{{ledgerUrl}}/accounts"
+      },
+      "event": [{"listen": "test", "script": {"exec": ["pm.environment.set('bobAccountId', pm.response.json().account_id);"]}}]
+    },
+    {
+      "name": "Deposit",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}, {"key": "Idempotency-Key", "value": "{{idempotencyKey}}"}, {"key": "X-Correlation-ID", "value": "{{correlationId}}"}],
+        "body": {"mode": "raw", "raw": "{\"account_id\":\"{{aliceAccountId}}\",\"cash_account_id\":\"{{cashAccountId}}\",\"amount_minor\":100000}"},
+        "url": "{{ledgerUrl}}/transactions/deposit"
+      },
+      "event": [{"listen": "test", "script": {"exec": ["pm.test('posted', () => pm.response.to.have.status(201));", "pm.environment.set('transactionId', pm.response.json().transaction_id);", "pm.test('correlation returned', () => pm.expect(pm.response.headers.get('X-Correlation-ID')).to.eql(pm.variables.get('correlationId')));"]}}]
+    },
+    {
+      "name": "Transfer",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}, {"key": "Idempotency-Key", "value": "{{$guid}}"}],
+        "body": {"mode": "raw", "raw": "{\"from_account_id\":\"{{aliceAccountId}}\",\"to_account_id\":\"{{bobAccountId}}\",\"amount_minor\":25000}"},
+        "url": "{{ledgerUrl}}/transactions/transfer"
+      },
+      "event": [{"listen": "test", "script": {"exec": ["pm.test('posted', () => pm.response.to.have.status(201));"]}}]
+    },
+    {
+      "name": "Account history",
+      "request": {"method": "GET", "url": "{{ledgerUrl}}/accounts/{{aliceAccountId}}/transactions"},
+      "event": [{"listen": "test", "script": {"exec": ["pm.test('history present', () => pm.expect(pm.response.json().count).to.be.above(0));"]}}]
+    },
+    {
+      "name": "Risk decline example",
+      "request": {
+        "auth": {"type": "noauth"},
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\"client_scope\":\"postman\",\"idempotency_key\":\"{{$guid}}\",\"transaction_type\":\"transfer\",\"amount_minor\":1000,\"owner_ids\":[\"blocked-demo\"],\"correlation_id\":\"{{correlationId}}\"}"},
+        "url": "{{riskUrl}}/risk-decisions"
+      },
+      "event": [{"listen": "test", "script": {"exec": ["pm.test('declined', () => pm.expect(pm.response.json().state).to.eql('declined'));"]}}]
+    },
+    {
+      "name": "Compliance alerts",
+      "request": {"auth": {"type": "noauth"}, "method": "GET", "url": "{{complianceUrl}}/compliance-alerts"}
+    },
+    {
+      "name": "Run settlement batch",
+      "request": {"auth": {"type": "noauth"}, "method": "POST", "url": "{{settlementUrl}}/settlements/run"}
+    }
+  ]
+}

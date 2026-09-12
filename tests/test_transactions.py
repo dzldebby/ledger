@@ -91,6 +91,16 @@ def test_deposit_same_account_and_cash_account_returns_400(client, account_ids):
     assert response.status_code == 400
 
 
+def test_deposit_unknown_account_returns_404(client, account_ids):
+    response = client.post("/transactions/deposit", json={
+        "account_id": str(uuid.uuid4()),
+        "cash_account_id": account_ids["cash"],
+        "amount_minor": 100,
+    }, headers=idem_headers())
+
+    assert response.status_code == 404
+
+
 def test_deposit_missing_idempotency_key_returns_422(client, account_ids):
     response = client.post("/transactions/deposit", json={
         "account_id": account_ids["account_id"],

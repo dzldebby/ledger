@@ -4,99 +4,216 @@
 <meta charset="utf-8">
 <title>Ledger Test UI</title>
 <style>
-  body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
-  h1 { font-size: 1.4rem; }
-  h2 { font-size: 1.1rem; margin-top: 2rem; border-bottom: 1px solid #ddd; padding-bottom: 0.3rem; }
-  .card { background: #f7f7f8; border: 1px solid #e2e2e2; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
-  label { display: block; font-size: 0.85rem; margin-top: 0.6rem; color: #555; }
-  input, select { width: 100%; padding: 0.4rem; margin-top: 0.2rem; box-sizing: border-box; }
-  button { margin-top: 0.8rem; padding: 0.5rem 1rem; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; }
+  :root { --blue: #2563eb; --ink: #172033; --muted: #64748b; --line: #dbe3ef; --surface: #fff; --canvas: #f3f6fb; }
+  * { box-sizing: border-box; }
+  body { font-family: Inter, ui-sans-serif, system-ui, sans-serif; margin: 0; color: var(--ink); background: var(--canvas); }
+  header { position: sticky; top: 0; z-index: 10; background: rgba(255,255,255,.96); border-bottom: 1px solid var(--line); backdrop-filter: blur(10px); }
+  .header-inner, main { width: min(1180px, calc(100% - 2rem)); margin: 0 auto; }
+  .brand-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .8rem 0 .55rem; }
+  h1 { font-size: 1.15rem; margin: 0; }
+  h2 { font-size: 1.05rem; margin: 0 0 .3rem; }
+  h3 { font-size: .95rem; margin: 0 0 .65rem; }
+  p { line-height: 1.45; }
+  .subtitle, .hint { color: var(--muted); font-size: .82rem; margin: .2rem 0 .75rem; }
+  .api-bar { display: grid; grid-template-columns: minmax(240px, 1fr) auto minmax(210px, auto); gap: .6rem; align-items: center; padding-bottom: .65rem; }
+  .api-bar input, .api-bar button { margin: 0; }
+  #api-key-status { margin: 0; font-size: .78rem; text-align: right; }
+  .tabs { display: flex; gap: .25rem; overflow-x: auto; }
+  .tab { margin: 0; padding: .65rem 1rem; color: var(--muted); background: transparent; border: 0; border-bottom: 3px solid transparent; border-radius: 0; white-space: nowrap; }
+  .tab:hover { color: var(--ink); background: #eff6ff; }
+  .tab.active { color: var(--blue); border-bottom-color: var(--blue); background: transparent; }
+  main { padding: 1.25rem 0 2rem; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+  .section-heading { display: flex; justify-content: space-between; align-items: end; gap: 1rem; margin-bottom: .8rem; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 1rem; box-shadow: 0 2px 8px rgba(15,23,42,.04); }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+  .stack { display: grid; gap: 1rem; align-content: start; }
+  label { display: block; font-size: 0.78rem; font-weight: 600; margin-top: 0.55rem; color: #475569; }
+  input, select { width: 100%; padding: .55rem .65rem; margin-top: .2rem; border: 1px solid #cbd5e1; border-radius: 7px; background: white; color: var(--ink); }
+  input:focus, select:focus { outline: 3px solid #bfdbfe; border-color: var(--blue); }
+  button { margin-top: 0.75rem; padding: .55rem .85rem; background: var(--blue); color: white; border: none; border-radius: 7px; cursor: pointer; font-weight: 600; }
   button:hover { background: #1d4ed8; }
   .accounts-list { font-size: 0.85rem; }
   .accounts-list div { padding: 0.3rem 0; border-bottom: 1px solid #eee; }
   .tag { display: inline-block; font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 4px; margin-right: 0.4rem; }
   .tag.cash { background: #fde68a; }
   .tag.customer { background: #bfdbfe; }
-  #log { background: #111; color: #0f0; font-family: monospace; font-size: 0.8rem; padding: 1rem; border-radius: 8px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; }
+  #accounts-list { max-height: 220px; overflow: auto; }
+  #log { background: #0f172a; color: #86efac; font-family: ui-monospace, monospace; font-size: 0.78rem; padding: 1rem; border-radius: 10px; height: min(58vh, 560px); overflow-y: auto; white-space: pre-wrap; }
   .err { color: #b91c1c; font-weight: bold; }
+  .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.8rem; }
+  .button-row { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
+  .button-row button { margin-top: 0.8rem; }
+  .secondary { background: #475569; }
+  .secondary:hover { background: #334155; }
+  .danger { background: #b91c1c; }
+  .danger:hover { background: #991b1b; }
+  .result { background: white; border: 1px solid #ddd; border-radius: 6px; padding: 0.8rem; margin-top: 0.8rem; white-space: pre-wrap; font-family: monospace; font-size: 0.8rem; }
+  .success { color: #166534; }
+  .trace-chip { border: 1px solid #bfdbfe; color: #1d4ed8; background: #eff6ff; padding: .4rem .65rem; border-radius: 999px; font: 600 .75rem ui-monospace, monospace; cursor: pointer; }
+  .trace-chip:hover { background: #dbeafe; }
+  .step { display: inline-grid; place-items: center; width: 1.45rem; height: 1.45rem; margin-right: .35rem; border-radius: 50%; color: white; background: var(--blue); font-size: .75rem; }
+  .observe-grid { display: grid; grid-template-columns: minmax(270px, .75fr) minmax(0, 1.6fr); gap: 1rem; }
+  a { color: #1d4ed8; }
+  @media (max-width: 760px) {
+    .header-inner, main { width: min(100% - 1rem, 1180px); }
+    .brand-row { align-items: flex-start; }
+    .api-bar { grid-template-columns: 1fr auto; }
+    #api-key-status { grid-column: 1 / -1; text-align: left; }
+    .grid, .observe-grid { grid-template-columns: 1fr; }
+    .section-heading { align-items: flex-start; flex-direction: column; }
+  }
 </style>
 </head>
 <body>
-
-<h1>Ledger Test UI</h1>
-<p style="color:#666; font-size:0.9rem;">Manual testing tool for the Ledger API — hits the live backend on this server.</p>
-
-<h2>0. API Key</h2>
-<div class="card">
-  <p style="font-size:0.85rem; color:#555; margin-top:0;">Every request requires a valid API key (<code>X-API-Key</code> header). Provision one from your terminal with <code>python scripts/create_client.py &lt;client_id&gt;</code>, then paste it here — it's saved in this browser only.</p>
-  <label>API Key</label>
-  <input id="api_key_input" placeholder="paste your API key here">
-  <button onclick="saveApiKey()">Save</button>
-  <p id="api-key-status" style="font-size:0.8rem; margin-top:0.5rem;"></p>
-</div>
-
-<h2>1. Bank Setup (one-time)</h2>
-<div class="card">
-  <p style="font-size:0.85rem; color:#555; margin-top:0;">The bank has exactly <strong>one</strong> cash account — it represents the bank's total physical funds, not any individual customer. Create it once, before any deposits.</p>
-  <div id="cash-setup-content">
-    <button onclick="createCashAccount()">Create Bank Cash Account</button>
+<header>
+  <div class="header-inner">
+    <div class="brand-row">
+      <div><h1>Ledger Lab</h1><div class="subtitle">Test accounts, transactions, workflows, and traces</div></div>
+      <button id="trace-chip" class="trace-chip" onclick="showTab('observe')">No trace yet</button>
+    </div>
+    <div class="api-bar">
+      <input id="api_key_input" type="password" aria-label="API key" placeholder="API key (local-development-key)">
+      <button onclick="saveApiKey()">Save key</button>
+      <p id="api-key-status"></p>
+    </div>
+    <nav class="tabs" aria-label="Ledger test areas">
+      <button class="tab active" data-tab="ledger" onclick="showTab('ledger')">Ledger</button>
+      <button class="tab" data-tab="temporal" onclick="showTab('temporal')">Temporal</button>
+      <button class="tab" data-tab="observe" onclick="showTab('observe')">Observe</button>
+    </nav>
   </div>
-</div>
+</header>
 
-<h2>2. Create Customer Account</h2>
-<div class="card">
-  <label>Owner ID</label>
-  <input id="owner_id" placeholder="e.g. test1, alice, bob">
-  <button onclick="createCustomerAccount()">Create Customer Account</button>
-</div>
+<main>
+<section id="panel-ledger" class="tab-panel active">
+  <div class="section-heading"><div><h2>Ledger operations</h2><p class="subtitle">Create accounts and test core money movements.</p></div></div>
+  <div class="grid">
+    <div class="stack">
+      <div class="card">
+        <h3><span class="step">1</span>Bank setup</h3>
+        <p class="hint">Create the bank's single cash account before making deposits.</p>
+        <div id="cash-setup-content"><button onclick="createCashAccount()">Create Bank Cash Account</button></div>
+      </div>
+      <div class="card">
+        <h3><span class="step">2</span>Create account</h3>
+        <label>Owner ID</label><input id="owner_id" placeholder="e.g. alice or shop-123">
+        <label>Account Type</label>
+        <select id="account_type"><option value="customer">customer</option><option value="personal">personal</option><option value="business">business</option></select>
+        <button onclick="createLedgerAccount()">Create Account</button>
+      </div>
+      <div class="card accounts-list">
+        <h3>Available accounts</h3>
+        <div id="accounts-list"><em>No accounts created yet.</em></div>
+      </div>
+    </div>
+    <div class="stack">
+      <div class="card">
+        <h3>Deposit</h3>
+        <div class="row"><div><label>Receiving account</label><select id="deposit_account_id"></select></div><div><label>Cash account</label><select id="deposit_cash_account_id"></select></div></div>
+        <label>Amount (minor units)</label><input id="deposit_amount" type="number" value="1000">
+        <button onclick="deposit()">Deposit</button>
+      </div>
+      <div class="card">
+        <h3>Transfer</h3>
+        <div class="row"><div><label>From</label><select id="transfer_from_account_id"></select></div><div><label>To</label><select id="transfer_to_account_id"></select></div></div>
+        <label>Amount (minor units)</label><input id="transfer_amount" type="number" value="1000">
+        <button onclick="transfer()">Transfer</button>
+      </div>
+      <div class="card">
+        <h3>Inspect or reverse</h3>
+        <label>Account balance</label><select id="balance_account_id"></select>
+        <button onclick="checkBalance()">Get Balance</button>
+        <label>Transaction ID</label><input id="reversal_transaction_id" placeholder="Paste a transaction ID from Observe">
+        <button class="secondary" onclick="reverseTransaction()">Reverse Transaction</button>
+      </div>
+    </div>
+  </div>
+</section>
 
-<h2>Created Accounts (this session)</h2>
-<div class="card accounts-list" id="accounts-list">
-  <em>No accounts created yet.</em>
-</div>
+<section id="panel-temporal" class="tab-panel">
+  <div class="section-heading"><div><h2>Temporal Settlement Lab</h2><p class="subtitle">Run one guided settlement scenario at a time.</p></div><a href="http://localhost:8081" target="_blank" rel="noopener noreferrer">Open Temporal UI</a></div>
+  <div class="card">
+  <p class="hint">Create funded test data, start a durable settlement, simulate retries or rejection, and inspect the workflow.</p>
+  <div class="row">
+    <div>
+      <label>Test funding amount (minor units)</label>
+      <input id="temporal_funding_amount" type="number" min="1" value="1234">
+    </div>
+    <div>
+      <label>Batch ID (must be unique)</label>
+      <input id="temporal_batch_id">
+    </div>
+    <div>
+      <label>Scenario</label>
+      <select id="temporal_scenario">
+        <option value="normal">Normal success</option>
+        <option value="retry">Bank fails twice, then succeeds</option>
+        <option value="reject">Bank rejects; hold is released</option>
+        <option value="timer">Wait 10 seconds in a durable timer</option>
+        <option value="slow">Bank responds after 8 seconds</option>
+      </select>
+    </div>
+  </div>
+  <div class="button-row">
+    <button onclick="prepareTemporalFunds()">1. Create &amp; Fund Business Account</button>
+    <button onclick="startTemporalWorkflow()">2. Start Temporal Workflow</button>
+    <button class="secondary" onclick="checkTemporalWorkflow()">Refresh Status</button>
+    <button class="secondary" onclick="repeatTemporalWorkflow()">Test Duplicate Start</button>
+    <button class="secondary" onclick="checkTemporalBalance()">Check Test Balance</button>
+  </div>
+  <p id="temporal_lab_status" role="status">Create and fund a business account to begin.</p>
+  <a id="temporal_ui_link" href="http://localhost:8081" target="_blank" rel="noopener noreferrer">Open Temporal UI</a>
+  <div id="temporal_result" class="result">No Temporal test has run yet.</div>
+  </div>
+</section>
 
-<h2>Deposit</h2>
-<div class="card">
-  <label>Customer Account</label>
-  <select id="deposit_account_id"></select>
-  <label>Cash Account</label>
-  <select id="deposit_cash_account_id"></select>
-  <label>Amount (minor units, e.g. cents)</label>
-  <input id="deposit_amount" type="number" value="1000">
-  <button onclick="deposit()">Deposit</button>
-</div>
-
-<h2>Transfer</h2>
-<div class="card">
-  <label>From Account</label>
-  <select id="transfer_from_account_id"></select>
-  <label>To Account</label>
-  <select id="transfer_to_account_id"></select>
-  <label>Amount (minor units, e.g. cents)</label>
-  <input id="transfer_amount" type="number" value="1000">
-  <button onclick="transfer()">Transfer</button>
-</div>
-
-<h2>Reverse Transaction</h2>
-<div class="card">
-  <label>Transaction ID (copy from the Request Log below after a deposit/transfer)</label>
-  <input id="reversal_transaction_id" placeholder="e.g. a1b2c3d4-...">
-  <button onclick="reverseTransaction()">Reverse</button>
-</div>
-
-<h2>Check Balance</h2>
-<div class="card">
-  <label>Account</label>
-  <select id="balance_account_id"></select>
-  <button onclick="checkBalance()">Get Balance</button>
-</div>
-
-<h2>Request Log</h2>
-<div id="log">Waiting for requests...</div>
+<section id="panel-observe" class="tab-panel">
+  <div class="section-heading"><div><h2>Observe requests</h2><p class="subtitle">Inspect headers, IDs, responses, and distributed traces.</p></div></div>
+  <div class="observe-grid">
+    <div class="card">
+      <h3>Latest trace</h3>
+      <p class="hint">Every request updates this value. Paste it into Grafana Explore using Tempo.</p>
+      <label for="latest_trace_id">Trace ID</label>
+      <input id="latest_trace_id" readonly placeholder="Make a request to see its trace ID">
+      <div class="button-row"><button onclick="copyTraceId()">Copy Trace ID</button><a href="http://localhost:3000/explore" target="_blank" rel="noopener noreferrer">Open Grafana</a></div>
+      <p id="trace_status" role="status">Trace headers and idempotency keys appear in the request log.</p>
+    </div>
+    <div><h3>Request log</h3><div id="log">Waiting for requests...</div></div>
+  </div>
+</section>
+</main>
 
 <script>
 const accounts = [];
 const API_KEY_STORAGE_KEY = 'ledger_ui_api_key';
+const ACTIVE_TAB_STORAGE_KEY = 'ledger_ui_active_tab';
+const TEMPORAL_API_URL = 'http://localhost:8005';
+let temporalBusinessAccountId = '';
+let temporalWorkflowId = '';
+let temporalPollTimer = null;
+
+function showTab(name) {
+  const panel = document.getElementById(`panel-${name}`);
+  if (!panel) return;
+  document.querySelectorAll('.tab-panel').forEach(item => item.classList.toggle('active', item === panel));
+  document.querySelectorAll('.tab').forEach(item => {
+    const active = item.dataset.tab === name;
+    item.classList.toggle('active', active);
+    item.setAttribute('aria-selected', String(active));
+  });
+  localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, name);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function setLatestTrace(traceId, message) {
+  document.getElementById('latest_trace_id').value = traceId || '';
+  document.getElementById('trace_status').textContent = message;
+  const chip = document.getElementById('trace-chip');
+  chip.textContent = traceId ? `Trace ${traceId.slice(0, 8)}…` : 'No trace yet';
+  chip.title = traceId || 'Make a request to capture a trace';
+}
 
 function getApiKey() {
   return localStorage.getItem(API_KEY_STORAGE_KEY) || '';
@@ -125,22 +242,60 @@ function log(label, data, isError = false) {
   const el = document.getElementById('log');
   const cls = isError ? 'err' : '';
   const line = `[${new Date().toLocaleTimeString()}] ${label}\n${JSON.stringify(data, null, 2)}\n\n`;
-  el.innerHTML = `<span class="${cls}">${line}</span>` + el.innerHTML;
+  const entry = document.createElement('span');
+  entry.className = cls;
+  entry.textContent = line;
+  el.prepend(entry);
+}
+
+async function copyTraceId() {
+  const traceId = document.getElementById('latest_trace_id').value;
+  const status = document.getElementById('trace_status');
+  if (!traceId) { status.textContent = 'Make a request with tracing enabled first.'; return; }
+  try {
+    await navigator.clipboard.writeText(traceId);
+    status.textContent = 'Trace ID copied. Paste it into Grafana Explore / Tempo.';
+  } catch {
+    document.getElementById('latest_trace_id').select();
+    status.textContent = 'Press Ctrl+C to copy the selected Trace ID.';
+  }
+}
+
+async function ledgerRequest(url, options = {}) {
+  const headers = new Headers(options.headers);
+  if (!headers.has('X-Correlation-ID')) headers.set('X-Correlation-ID', crypto.randomUUID());
+  const response = await fetch(url, { ...options, headers });
+  const traceId = response.headers.get('X-Trace-ID');
+  setLatestTrace(traceId, traceId
+    ? 'Trace received. Allow several seconds for Kafka and compliance spans to appear in Tempo.'
+    : 'No trace ID returned. Rebuild the API with the latest tracing changes and retry.');
+  log(`${options.method || 'GET'} ${url} — response headers`, {
+    status: response.status,
+    'Idempotency-Key': headers.get('Idempotency-Key'),
+    'X-Correlation-ID': response.headers.get('X-Correlation-ID'),
+    'X-Trace-ID': traceId,
+    traceparent: response.headers.get('traceparent')
+  }, !response.ok);
+  return response;
 }
 
 // null means "show all account types"; otherwise only accounts of that type are listed
 const SELECT_TYPE_FILTERS = {
-  deposit_account_id: 'customer',
+  deposit_account_id: ['customer', 'personal', 'business'],
   deposit_cash_account_id: 'cash',
-  transfer_from_account_id: 'customer',
-  transfer_to_account_id: 'customer',
+  transfer_from_account_id: ['customer', 'personal', 'business'],
+  transfer_to_account_id: ['customer', 'personal', 'business'],
   balance_account_id: null,
 };
 
 function refreshAccountSelects() {
   Object.entries(SELECT_TYPE_FILTERS).forEach(([id, typeFilter]) => {
     const sel = document.getElementById(id);
-    const filtered = typeFilter ? accounts.filter(a => a.account_type === typeFilter) : accounts;
+    const filtered = typeFilter
+      ? accounts.filter(a => Array.isArray(typeFilter)
+          ? typeFilter.includes(a.account_type)
+          : a.account_type === typeFilter)
+      : accounts;
     sel.innerHTML = filtered.length
       ? filtered.map(a =>
           `<option value="${a.account_id}">${a.account_type} — ${a.owner_id} (${a.account_id.slice(0,8)})</option>`
@@ -170,20 +325,22 @@ function renderCashSetupCard() {
 
 async function createAccountRequest(owner_id, account_type) {
   try {
-    const res = await fetch('/accounts', {
+    const res = await ledgerRequest('/accounts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...apiKeyHeaders() },
       body: JSON.stringify({ owner_id, account_type })
     });
     const data = await res.json();
-    if (!res.ok) { log(`POST /accounts (${account_type}) FAILED`, data, true); return; }
+    if (!res.ok) { log(`POST /accounts (${account_type}) FAILED`, data, true); return null; }
     accounts.push(data);
     renderAccountsList();
     refreshAccountSelects();
     renderCashSetupCard();
     log('POST /accounts', data);
+    return data;
   } catch (e) {
     log('POST /accounts ERROR', String(e), true);
+    return null;
   }
 }
 
@@ -191,10 +348,11 @@ async function createCashAccount() {
   await createAccountRequest('system', 'cash');
 }
 
-async function createCustomerAccount() {
+async function createLedgerAccount() {
   const owner_id = document.getElementById('owner_id').value;
-  if (!owner_id) { log('Create Customer Account', 'Enter an owner ID first.', true); return; }
-  await createAccountRequest(owner_id, 'customer');
+  const account_type = document.getElementById('account_type').value;
+  if (!owner_id) { log('Create Account', 'Enter an owner ID first.', true); return; }
+  await createAccountRequest(owner_id, account_type);
 }
 
 async function deposit() {
@@ -203,7 +361,7 @@ async function deposit() {
   const amount_minor = parseInt(document.getElementById('deposit_amount').value, 10);
   if (!account_id || !cash_account_id) { log('Deposit', 'Create a customer account and a cash account first.', true); return; }
   try {
-    const res = await fetch('/transactions/deposit', {
+    const res = await ledgerRequest('/transactions/deposit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID(), ...apiKeyHeaders() },
       body: JSON.stringify({ account_id, cash_account_id, amount_minor })
@@ -222,7 +380,7 @@ async function transfer() {
   const amount_minor = parseInt(document.getElementById('transfer_amount').value, 10);
   if (!from_account_id || !to_account_id) { log('Transfer', 'Create at least two accounts first.', true); return; }
   try {
-    const res = await fetch('/transactions/transfer', {
+    const res = await ledgerRequest('/transactions/transfer', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID(), ...apiKeyHeaders() },
       body: JSON.stringify({ from_account_id, to_account_id, amount_minor })
@@ -239,7 +397,7 @@ async function reverseTransaction() {
   const transaction_id = document.getElementById('reversal_transaction_id').value.trim();
   if (!transaction_id) { log('Reverse', 'Enter a transaction ID first.', true); return; }
   try {
-    const res = await fetch(`/transactions/${transaction_id}/reverse`, {
+    const res = await ledgerRequest(`/transactions/${transaction_id}/reverse`, {
       method: 'POST',
       headers: { 'Idempotency-Key': crypto.randomUUID(), ...apiKeyHeaders() }
     });
@@ -255,7 +413,7 @@ async function checkBalance() {
   const account_id = document.getElementById('balance_account_id').value;
   if (!account_id) { log('Balance', 'Create an account first.', true); return; }
   try {
-    const res = await fetch(`/accounts/${account_id}/balance`, { headers: apiKeyHeaders() });
+    const res = await ledgerRequest(`/accounts/${account_id}/balance`, { headers: apiKeyHeaders() });
     const data = await res.json();
     if (!res.ok) { log('GET /accounts/{id}/balance FAILED', data, true); return; }
     log('GET /accounts/{id}/balance', data);
@@ -264,11 +422,164 @@ async function checkBalance() {
   }
 }
 
+function freshTemporalBatchId() {
+  return `ui-${new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14)}-${crypto.randomUUID().slice(0, 6)}`;
+}
+
+function temporalScenarioPayload() {
+  const scenario = document.getElementById('temporal_scenario').value;
+  return {
+    payout_failures_before_success: scenario === 'retry' ? 2 : 0,
+    simulate_bank_rejection: scenario === 'reject',
+    payout_delay_seconds: scenario === 'slow' ? 8 : 0,
+    workflow_delay_seconds: scenario === 'timer' ? 10 : 0,
+  };
+}
+
+function showTemporalResult(label, data, isError = false) {
+  const result = document.getElementById('temporal_result');
+  result.textContent = `${label}\n${JSON.stringify(data, null, 2)}`;
+  result.className = `result ${isError ? 'err' : ''}`;
+  log(label, data, isError);
+}
+
+async function temporalRequest(path, options = {}) {
+  const headers = new Headers(options.headers);
+  if (!headers.has('X-Correlation-ID')) headers.set('X-Correlation-ID', crypto.randomUUID());
+  const response = await fetch(`${TEMPORAL_API_URL}${path}`, { ...options, headers });
+  const traceId = response.headers.get('X-Trace-ID');
+  if (traceId) {
+    setLatestTrace(traceId, 'Temporal trace received. Search for it in Grafana Tempo.');
+  }
+  return response;
+}
+
+async function prepareTemporalFunds() {
+  const status = document.getElementById('temporal_lab_status');
+  const amount_minor = parseInt(document.getElementById('temporal_funding_amount').value, 10);
+  if (!getApiKey()) { status.textContent = 'Save the API key first.'; return; }
+  if (!Number.isInteger(amount_minor) || amount_minor <= 0) { status.textContent = 'Enter a positive funding amount.'; return; }
+  status.textContent = 'Creating test accounts and funding the business account...';
+  let cash = accounts.find(account => account.account_type === 'cash');
+  if (!cash) cash = await createAccountRequest(`temporal-cash-${Date.now()}`, 'cash');
+  const business = await createAccountRequest(`temporal-business-${Date.now()}`, 'business');
+  if (!cash || !business) { status.textContent = 'Account setup failed. Check the request log.'; return; }
+
+  const response = await ledgerRequest('/transactions/deposit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID(), ...apiKeyHeaders() },
+    body: JSON.stringify({
+      account_id: business.account_id,
+      cash_account_id: cash.account_id,
+      amount_minor,
+    }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    status.textContent = 'Funding failed. Check the request log.';
+    showTemporalResult('Temporal test funding failed', data, true);
+    return;
+  }
+  temporalBusinessAccountId = business.account_id;
+  document.getElementById('temporal_batch_id').value = freshTemporalBatchId();
+  status.textContent = `Business account ${business.account_id.slice(0, 8)} funded with ${amount_minor} minor units.`;
+  showTemporalResult('Temporal test account ready', {
+    business_account_id: business.account_id,
+    amount_minor,
+    deposit_transaction_id: data.transaction_id,
+  });
+}
+
+async function startTemporalWorkflow() {
+  const status = document.getElementById('temporal_lab_status');
+  const batch_id = document.getElementById('temporal_batch_id').value.trim();
+  if (!batch_id) { status.textContent = 'Enter a unique batch ID.'; return; }
+  status.textContent = 'Starting Temporal workflow...';
+  try {
+    const response = await temporalRequest('/temporal/settlements/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ batch_id, ...temporalScenarioPayload() }),
+    });
+    const data = await response.json();
+    if (!response.ok) { showTemporalResult('Temporal workflow start failed', data, true); return; }
+    temporalWorkflowId = data.workflow_id;
+    const link = document.getElementById('temporal_ui_link');
+    link.href = data.temporal_ui_url;
+    link.textContent = `Open ${data.workflow_id} in Temporal UI`;
+    status.textContent = data.started ? 'Workflow started. Polling its durable status...' : 'Duplicate start rejected as expected.';
+    showTemporalResult('Temporal workflow start', data);
+    if (data.started) pollTemporalWorkflow();
+  } catch (error) {
+    status.textContent = 'Could not reach the Temporal API.';
+    showTemporalResult('Temporal API connection error', String(error), true);
+  }
+}
+
+async function repeatTemporalWorkflow() {
+  if (!temporalWorkflowId) {
+    document.getElementById('temporal_lab_status').textContent = 'Start a workflow first.';
+    return;
+  }
+  await startTemporalWorkflow();
+}
+
+async function checkTemporalWorkflow() {
+  const status = document.getElementById('temporal_lab_status');
+  if (!temporalWorkflowId) {
+    const batchId = document.getElementById('temporal_batch_id').value.trim();
+    if (batchId) temporalWorkflowId = `settlement-batch-${batchId}`;
+  }
+  if (!temporalWorkflowId) { status.textContent = 'Start a workflow first.'; return null; }
+  try {
+    const response = await temporalRequest(`/temporal/workflows/${encodeURIComponent(temporalWorkflowId)}`);
+    const data = await response.json();
+    if (!response.ok) { showTemporalResult('Temporal workflow status failed', data, true); return null; }
+    const link = document.getElementById('temporal_ui_link');
+    link.href = data.temporal_ui_url;
+    link.textContent = `Open ${data.workflow_id} in Temporal UI`;
+    status.textContent = `Workflow status: ${data.status}`;
+    showTemporalResult('Temporal workflow status', data);
+    return data;
+  } catch (error) {
+    status.textContent = 'Could not read workflow status.';
+    showTemporalResult('Temporal status connection error', String(error), true);
+    return null;
+  }
+}
+
+function pollTemporalWorkflow() {
+  if (temporalPollTimer) clearInterval(temporalPollTimer);
+  let checks = 0;
+  temporalPollTimer = setInterval(async () => {
+    checks += 1;
+    const data = await checkTemporalWorkflow();
+    if (!data || data.status !== 'running' || checks >= 45) {
+      clearInterval(temporalPollTimer);
+      temporalPollTimer = null;
+      if (data && temporalBusinessAccountId) await checkTemporalBalance();
+    }
+  }, 1000);
+}
+
+async function checkTemporalBalance() {
+  const status = document.getElementById('temporal_lab_status');
+  if (!temporalBusinessAccountId) { status.textContent = 'Create the Temporal test account first.'; return; }
+  const response = await ledgerRequest(`/accounts/${temporalBusinessAccountId}/balance`, { headers: apiKeyHeaders() });
+  const data = await response.json();
+  if (!response.ok) { showTemporalResult('Temporal test balance failed', data, true); return; }
+  const scenario = document.getElementById('temporal_scenario').value;
+  status.textContent = scenario === 'reject'
+    ? `Rejected payout released the hold. Available balance: ${data.available_balance_minor}.`
+    : `Settlement result balance: ${data.balance_minor}.`;
+  showTemporalResult('Temporal test account balance', data);
+}
+
 async function loadExistingAccounts() {
   if (!getApiKey()) { return; }
   accounts.length = 0;
   try {
-    const res = await fetch('/accounts', { headers: apiKeyHeaders() });
+    const res = await ledgerRequest('/accounts', { headers: apiKeyHeaders() });
     const data = await res.json();
     if (!res.ok) { log('GET /accounts FAILED', data, true); return; }
     accounts.push(...data);
@@ -282,7 +593,9 @@ async function loadExistingAccounts() {
 }
 
 document.getElementById('api_key_input').value = getApiKey();
+document.getElementById('temporal_batch_id').value = freshTemporalBatchId();
 updateApiKeyStatus();
+showTab(localStorage.getItem(ACTIVE_TAB_STORAGE_KEY) || 'ledger');
 loadExistingAccounts();
 </script>
 

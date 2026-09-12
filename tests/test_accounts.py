@@ -65,3 +65,35 @@ def test_list_accounts_includes_created_account(client):
     response = client.get("/accounts")
     account_ids = [a["account_id"] for a in response.json()]
     assert created["account_id"] in account_ids
+
+
+def test_account_history_is_immutable_and_newest_first(client):
+    import uuid
+
+    suffix = uuid.uuid4().hex[:8]
+    cash = client.post(
+        "/accounts",
+        json={"owner_id": f"history-cash-{suffix}", "account_type": "cash"},
+    ).json()
+    owner = client.post(
+        "/accounts",
+        json={"owner_id": f"history-owner-{suffix}", "account_type": "personal"},
+    ).json()
+    for amount in (1000, 2000):
+        client.post(
+            "/transactions/deposit",
+            headers={"Idempotency-Key": str(uuid.uuid4())},
+            json={
+                "account_id": owner["account_id"],
+                "cash_account_id": cash["account_id"],
+                "amount_minor": amount,
+            },
+        )
+
+    response = client.get(f"/accounts/{owner['account_id']}/transactions")
+    assert response.status_code == 200
+    history = response.json()
+    assert history["count"] == 2
+    assert [
+        item["posting"]["amount_minor"] for item in history["transactions"]
+    ] == [2000, 1000]

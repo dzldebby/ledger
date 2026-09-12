@@ -15,16 +15,247 @@ services:
       timeout: 5s
       retries: 5
 
+  risk-db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: risk
+      POSTGRES_USER: risk
+      POSTGRES_PASSWORD: risk
+    ports:
+      - "5433:5432"
+    volumes:
+      - risk_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U risk"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  compliance-db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: compliance
+      POSTGRES_USER: compliance
+      POSTGRES_PASSWORD: compliance
+    ports:
+      - "5434:5432"
+    volumes:
+      - compliance_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U compliance"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   app:
     build: .
     environment:
       DATABASE_URL: postgresql://ledger:ledger@db:5432/ledger
       RATE_LIMIT_PER_MINUTE: 1000
+      RISK_SERVICE_URL: http://risk:8001
+      RISK_TIMEOUT_SECONDS: 2
+      BOOTSTRAP_API_CLIENT_ID: local-services
+      BOOTSTRAP_API_KEY: local-development-key
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4318
+      OTEL_SERVICE_NAME: ledger-api
+      APP_ENV: local
     ports:
       - "8000:8000"
     depends_on:
       db:
         condition: service_healthy
+      risk:
+        condition: service_started
+      otel-lgtm:
+        condition: service_started
+
+  publisher:
+    build: .
+    command: ["python", "scripts/run_publisher.py"]
+    environment:
+      DATABASE_URL: postgresql://ledger:ledger@db:5432/ledger
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC: ledger.events
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4318
+      OTEL_SERVICE_NAME: outbox-publisher
+      APP_ENV: local
+    depends_on:
+      db:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      otel-lgtm:
+        condition: service_started
+    restart: on-failure
+
+  risk:
+    build: .
+    entrypoint: []
+    command: ["uvicorn", "risk_app.main:app", "--host", "0.0.0.0", "--port", "8001"]
+    environment:
+      RISK_DATABASE_URL: postgresql://risk:risk@risk-db:5432/risk
+      RISK_REVIEW_AMOUNT_MINOR: 500000
+      RISK_DECLINE_AMOUNT_MINOR: 1000000
+      RISK_VELOCITY_LIMIT_PER_MINUTE: 5
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4318
+      OTEL_SERVICE_NAME: risk-service
+      APP_ENV: local
+    ports:
+      - "8001:8001"
+    depends_on:
+      risk-db:
+        condition: service_healthy
+      otel-lgtm:
+        condition: service_started
+    restart: on-failure
+
+  compliance:
+    build: .
+    entrypoint: []
+    command: ["uvicorn", "compliance_app.main:app", "--host", "0.0.0.0", "--port", "8002"]
+    environment:
+      COMPLIANCE_DATABASE_URL: postgresql://compliance:compliance@compliance-db:5432/compliance
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC: ledger.events
+      KAFKA_DLQ_TOPIC: ledger.events.dlq
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4318
+      OTEL_SERVICE_NAME: compliance-service
+      APP_ENV: local
+    ports:
+      - "8002:8002"
+    depends_on:
+      compliance-db:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      otel-lgtm:
+        condition: service_started
+    restart: on-failure
+
+  external-bank:
+    build: .
+    entrypoint: []
+    command: ["uvicorn", "external_bank_app.main:app", "--host", "0.0.0.0", "--port", "8003"]
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4318
+      OTEL_SERVICE_NAME: external-bank
+      APP_ENV: local
+    ports:
+      - "8003:8003"
+    depends_on:
+      otel-lgtm:
+        condition: service_started
+    restart: on-failure
+
+  settlement:
+    build: .
+    entrypoint: []
+    command: ["uvicorn", "settlement_app.main:app", "--host", "0.0.0.0", "--port", "8004"]
+    environment:
+      LEDGER_URL: http://app:8000
+      LEDGER_API_KEY: local-development-key
+      EXTERNAL_BANK_URL: http://external-bank:8003
+      SETTLEMENT_INTERVAL_SECONDS: 86400
+      SETTLEMENT_RUN_ON_STARTUP: "false"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4318
+      OTEL_SERVICE_NAME: settlement-service
+      APP_ENV: local
+    ports:
+      - "8004:8004"
+    depends_on:
+      app:
+        condition: service_started
+      external-bank:
+        condition: service_started
+      otel-lgtm:
+        condition: service_started
+    restart: on-failure
+
+  # Additive Temporal path. The original settlement service above remains
+  # available on port 8004 and continues to work independently.
+  temporal-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: temporal
+    volumes:
+      - temporal_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U temporal"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  temporal:
+    image: temporalio/auto-setup:1.29.1
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: temporal
+      POSTGRES_PWD: temporal
+      POSTGRES_SEEDS: temporal-db
+    ports:
+      - "7233:7233"
+    depends_on:
+      temporal-db:
+        condition: service_healthy
+
+  temporal-ui:
+    image: temporalio/ui:2.34.0
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: http://localhost:8005
+    ports:
+      - "8081:8080"
+    depends_on:
+      temporal:
+        condition: service_started
+
+  temporal-worker:
+    build: .
+    entrypoint: []
+    command: ["python", "-m", "temporal_app.worker"]
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_NAMESPACE: default
+      TEMPORAL_TASK_QUEUE: ledger-settlements
+      LEDGER_URL: http://app:8000
+      LEDGER_API_KEY: local-development-key
+      EXTERNAL_BANK_URL: http://external-bank:8003
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4318
+      OTEL_SERVICE_NAME: temporal-settlement-worker
+      APP_ENV: local
+    depends_on:
+      temporal:
+        condition: service_started
+      app:
+        condition: service_started
+      external-bank:
+        condition: service_started
+      otel-lgtm:
+        condition: service_started
+    restart: on-failure
+
+  temporal-api:
+    build: .
+    entrypoint: []
+    command: ["uvicorn", "temporal_app.api:app", "--host", "0.0.0.0", "--port", "8005"]
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_NAMESPACE: default
+      TEMPORAL_TASK_QUEUE: ledger-settlements
+      TEMPORAL_UI_URL: http://localhost:8081
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4318
+      OTEL_SERVICE_NAME: temporal-settlement-api
+      APP_ENV: local
+    ports:
+      - "8005:8005"
+    depends_on:
+      temporal:
+        condition: service_started
+      otel-lgtm:
+        condition: service_started
+    restart: on-failure
 
   # Single-broker Kafka in KRaft mode - no ZooKeeper, which stopped being
   # required in Kafka 3.3. One container is the whole cluster: it acts as both
@@ -79,5 +310,24 @@ services:
     depends_on:
       - kafka
 
+  otel-lgtm:
+    image: grafana/otel-lgtm:latest
+    environment:
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /otel-lgtm/grafana/conf/provisioning/dashboards/custom/ledger-health.json
+    ports:
+      - "3000:3000"
+      - "4317:4317"
+      - "4318:4318"
+    volumes:
+      - grafana_data:/data
+      - ./observability/grafana/ledger-health.json:/otel-lgtm/grafana/conf/provisioning/dashboards/custom/ledger-health.json:ro
+      - ./observability/grafana/ledger-business.json:/otel-lgtm/grafana/conf/provisioning/dashboards/custom/ledger-business.json:ro
+      - ./observability/grafana/dashboards.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/custom.yaml:ro
+      - ./observability/grafana/alerts.yaml:/otel-lgtm/grafana/conf/provisioning/alerting/ledger-alerts.yaml:ro
+
 volumes:
   postgres_data:
+  risk_postgres_data:
+  compliance_postgres_data:
+  grafana_data:
+  temporal_postgres_data:

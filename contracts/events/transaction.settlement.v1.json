@@ -1,0 +1,26 @@
+{
+  "event_id": "3c9d4e61-2e5f-7da4-1c6f-4a5b8d0e2f37",
+  "event_type": "transaction.settlement",
+  "schema_version": 1,
+  "occurred_at": "2026-08-28T23:59:59+00:00",
+  "traceparent": null,
+  "correlation_id": "corr-settlement-001",
+  "data": {
+    "transaction_id": "8dc9da32-1fcf-33f3-a2d6-22e26af652e0",
+    "type": "settlement",
+    "state": "posted",
+    "reversal_of_id": null,
+    "postings": [
+      {
+        "account_id": "merchant-uuid",
+        "side": "debit",
+        "amount": 75000
+      },
+      {
+        "account_id": "external-bank-uuid",
+        "side": "credit",
+        "amount": 75000
+      }
+    ]
+  }
+}

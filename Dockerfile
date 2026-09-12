@@ -8,7 +8,12 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app/ ./app/
+COPY compliance_app/ ./compliance_app/
+COPY external_bank_app/ ./external_bank_app/
 COPY migrations/ ./migrations/
+COPY risk_app/ ./risk_app/
+COPY settlement_app/ ./settlement_app/
+COPY temporal_app/ ./temporal_app/
 COPY alembic.ini .
 COPY scripts/ ./scripts/
 

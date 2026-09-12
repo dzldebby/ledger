@@ -14,6 +14,7 @@ someone else's service.
 import uuid
 from datetime import datetime, timezone
 
+from app.telemetry import get_correlation_id
 from app.schemas.transactions import PostingResponse, TransactionResponse
 
 SCHEMA_VERSION = 1
@@ -49,16 +50,16 @@ def build_event(
     event_id: uuid.UUID | str | None = None,
     occurred_at: datetime | None = None,
     traceparent: str | None = None,
+    correlation_id: str | None = None,
 ) -> dict:
     """Wraps a posted transaction in the v1 event envelope.
 
     event_id and occurred_at are injectable so the contract test can reproduce
     a fixture byte for byte; in production both are generated here.
 
-    traceparent is always present as a key and is null today - the ledger does
-    not yet propagate trace context. Threading the inbound header through to
-    here is the only change needed to populate it, and is not a contract
-    change because consumers are already required to handle null.
+    traceparent is always present as a key. It carries the active ledger span
+    when telemetry is enabled and remains null when no trace provider is
+    configured, which consumers must continue to accept.
     """
     return {
         "event_id": str(event_id or uuid.uuid4()),
@@ -66,6 +67,7 @@ def build_event(
         "schema_version": SCHEMA_VERSION,
         "occurred_at": format_timestamp(occurred_at or datetime.now(timezone.utc)),
         "traceparent": traceparent,
+        "correlation_id": correlation_id or get_correlation_id(),
         "data": {
             "transaction_id": response.transaction_id,
             "type": response.type,

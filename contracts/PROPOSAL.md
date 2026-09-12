@@ -130,23 +130,24 @@ cannot be missing for one that committed.
   "event_id": "evt-789",
   "event_type": "transaction.transfer",
   "schema_version": 1,
-  "occurred_at": "2026-08-28T10:15:00Z",
+  "occurred_at": "2026-08-28T10:15:00+00:00",
   "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+  "correlation_id": "corr-transfer-001",
   "data": {
     "transaction_id": "550e8400-e29b-41d4-a716-446655440000",
     "type": "transfer",
     "state": "posted",
     "reversal_of_id": null,
     "postings": [
-      {"account_id": "alice-uuid", "side": "debit",  "amount_minor": 5000},
-      {"account_id": "bob-uuid",   "side": "credit", "amount_minor": 5000}
+      {"account_id": "alice-uuid", "side": "debit",  "amount": 5000},
+      {"account_id": "bob-uuid",   "side": "credit", "amount": 5000}
     ]
   }
 }
 ```
 
 `event_type` is one of `transaction.deposit` | `transaction.transfer` |
-`transaction.reversal`.
+`transaction.reversal` | `transaction.settlement`.
 
 ### Guarantees
 

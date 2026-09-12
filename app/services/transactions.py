@@ -2,8 +2,14 @@ import hashlib
 import json
 
 import asyncpg
+from opentelemetry import metrics, trace
+from opentelemetry.propagate import inject
 from app.schemas.transactions import DepositCreate, TransferCreate, ReversalCreate, TransactionResponse, PostingResponse
 from app.services.events import build_event
+from app.services.risk import evaluate_risk
+
+tracer = trace.get_tracer("ledger-api")
+command_counter = metrics.get_meter("ledger-api").create_counter("ledger.commands")
 
 
 class SameAccountError(Exception):
@@ -39,6 +45,7 @@ def _compute_request_hash(operation: str, data) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
+@tracer.start_as_current_span("ledger.idempotency.load_response")
 async def _load_transaction_response(conn: asyncpg.Connection, transaction_id) -> TransactionResponse:
     transaction_row = await conn.fetchrow("""
         SELECT transaction_id, type, state, reversal_of_id FROM transactions WHERE transaction_id = $1
@@ -61,44 +68,69 @@ async def _load_transaction_response(conn: asyncpg.Connection, transaction_id) -
     )
 
 
-async def _run_idempotent(conn: asyncpg.Connection, client_scope: str, idempotency_key: str, operation: str, data, execute_fn) -> TransactionResponse:
+async def _run_idempotent(
+    conn: asyncpg.Connection,
+    client_scope: str,
+    idempotency_key: str,
+    operation: str,
+    data,
+    execute_fn,
+    correlation_id: str,
+) -> TransactionResponse:
     request_hash = _compute_request_hash(operation, data)
 
-    async with conn.transaction():
-        existing = await conn.fetchrow("""
-            SELECT transaction_id, request_hash FROM idempotency_records
-            WHERE client_scope = $1 AND idempotency_key = $2
-            FOR UPDATE
-        """, client_scope, idempotency_key)
+    with tracer.start_as_current_span("ledger.post_transaction") as span:
+        span.set_attribute("ledger.operation", operation)
+        span.set_attribute("correlation_id", correlation_id)
+        async with conn.transaction():
+            await conn.execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended($1 || ':' || $2, 0))",
+                client_scope,
+                idempotency_key,
+            )
+            existing = await conn.fetchrow("""
+                SELECT transaction_id, request_hash FROM idempotency_records
+                WHERE client_scope = $1 AND idempotency_key = $2
+                FOR UPDATE
+            """, client_scope, idempotency_key)
 
-        if existing:
-            if existing["request_hash"] != request_hash:
+            if existing:
+                span.add_event("ledger.idempotency.hit")
+                if existing["request_hash"] != request_hash:
+                    command_counter.add(1, {"operation": operation, "outcome": "rejected"})
+                    raise IdempotencyKeyReuseError()
+                command_counter.add(1, {"operation": operation, "outcome": "duplicate"})
+                return await _load_transaction_response(conn, existing["transaction_id"])
+
+            try:
+                await conn.execute("""
+                    INSERT INTO idempotency_records (client_scope, idempotency_key, request_hash, state)
+                    VALUES ($1, $2, $3, 'processing')
+                """, client_scope, idempotency_key, request_hash)
+            except asyncpg.exceptions.UniqueViolationError:
+                command_counter.add(1, {"operation": operation, "outcome": "rejected"})
                 raise IdempotencyKeyReuseError()
-            return await _load_transaction_response(conn, existing["transaction_id"])
 
-        try:
+            response = await execute_fn(conn)
+            span.set_attribute("ledger.transaction_id", response.transaction_id)
+            await _record_outbox_event(conn, response, correlation_id=correlation_id)
+
             await conn.execute("""
-                INSERT INTO idempotency_records (client_scope, idempotency_key, request_hash, state)
-                VALUES ($1, $2, $3, 'processing')
-            """, client_scope, idempotency_key, request_hash)
-        except asyncpg.exceptions.UniqueViolationError:
-            raise IdempotencyKeyReuseError()
+                UPDATE idempotency_records SET state = 'complete', transaction_id = $1
+                WHERE client_scope = $2 AND idempotency_key = $3
+            """, response.transaction_id, client_scope, idempotency_key)
 
-        response = await execute_fn(conn)
-        await _record_outbox_event(conn, response)
-
-        await conn.execute("""
-            UPDATE idempotency_records SET state = 'complete', transaction_id = $1
-            WHERE client_scope = $2 AND idempotency_key = $3
-        """, response.transaction_id, client_scope, idempotency_key)
-
+        command_counter.add(1, {"operation": operation, "outcome": "posted"})
+        span.add_event("ledger.transaction.committed")
     return response
 
 
+@tracer.start_as_current_span("ledger.outbox.enqueue")
 async def _record_outbox_event(
     conn: asyncpg.Connection,
     response: TransactionResponse,
     traceparent: str | None = None,
+    correlation_id: str | None = None,
 ) -> None:
     """Writes the transactional-outbox row for a transaction just posted.
 
@@ -118,27 +150,37 @@ async def _record_outbox_event(
     is taken from the same built dict, so a column can never disagree with the
     payload it projects.
     """
-    event = build_event(response, traceparent=traceparent)
+    carrier = {}
+    inject(carrier)
+    event = build_event(
+        response,
+        traceparent=traceparent or carrier.get("traceparent"),
+        correlation_id=correlation_id,
+    )
 
     await conn.execute("""
-        INSERT INTO outbox_events (event_id, transaction_id, event_type, payload, traceparent)
-        VALUES ($1::uuid, $2::uuid, $3, $4::jsonb, $5)
+        INSERT INTO outbox_events (
+            event_id, transaction_id, event_type, payload, traceparent, correlation_id
+        ) VALUES ($1::uuid, $2::uuid, $3, $4::jsonb, $5, $6)
     """, event["event_id"], response.transaction_id, event["event_type"],
-         json.dumps(event), event["traceparent"])
+         json.dumps(event), event["traceparent"], event["correlation_id"])
 
 
+@tracer.start_as_current_span("ledger.deposit.postings_and_balances")
 async def _execute_deposit(conn: asyncpg.Connection, data: DepositCreate) -> TransactionResponse:
     if data.account_id == data.cash_account_id:
         raise SameAccountError()
 
     # Lock both balance rows in consistent order to avoid deadlocks
     account_ids = sorted([data.account_id, data.cash_account_id])
-    await conn.fetch("""
+    rows = await conn.fetch("""
         SELECT account_id FROM balances
         WHERE account_id = ANY($1::uuid[])
         ORDER BY account_id
         FOR UPDATE
     """, account_ids)
+    if len(rows) != 2:
+        raise AccountNotFoundError()
 
     transaction_row = await conn.fetchrow("""
         INSERT INTO transactions (type, state)
@@ -180,10 +222,31 @@ async def _execute_deposit(conn: asyncpg.Connection, data: DepositCreate) -> Tra
     )
 
 
-async def create_deposit(conn: asyncpg.Connection, data: DepositCreate, client_id: str, idempotency_key: str) -> TransactionResponse:
-    return await _run_idempotent(conn, client_id, idempotency_key, "deposit", data, lambda c: _execute_deposit(c, data))
+async def create_deposit(
+    conn: asyncpg.Connection,
+    data: DepositCreate,
+    client_id: str,
+    idempotency_key: str,
+    correlation_id: str = "",
+) -> TransactionResponse:
+    async def execute(risk_conn):
+        await evaluate_risk(
+            risk_conn,
+            transaction_type="deposit",
+            account_ids=[data.account_id, data.cash_account_id],
+            amount_minor=data.amount_minor,
+            client_scope=client_id,
+            idempotency_key=idempotency_key,
+            correlation_id=correlation_id,
+        )
+        return await _execute_deposit(risk_conn, data)
+
+    return await _run_idempotent(
+        conn, client_id, idempotency_key, "deposit", data, execute, correlation_id
+    )
 
 
+@tracer.start_as_current_span("ledger.transfer.postings_and_balances")
 async def _execute_transfer(conn: asyncpg.Connection, data: TransferCreate) -> TransactionResponse:
     if data.from_account_id == data.to_account_id:
         raise SameAccountError()
@@ -191,16 +254,21 @@ async def _execute_transfer(conn: asyncpg.Connection, data: TransferCreate) -> T
     # Lock both balance rows in consistent order to avoid deadlocks
     account_ids = sorted([data.from_account_id, data.to_account_id])
     rows = await conn.fetch("""
-        SELECT account_id, balance_minor FROM balances
-        WHERE account_id = ANY($1::uuid[])
-        ORDER BY account_id
-        FOR UPDATE
+        SELECT b.account_id, b.balance_minor,
+               b.balance_minor - COALESCE((
+                   SELECT sum(h.amount_minor) FROM holds h
+                   WHERE h.account_id = b.account_id AND h.status = 'active'
+               ), 0) AS available_balance_minor
+        FROM balances b
+        WHERE b.account_id = ANY($1::uuid[])
+        ORDER BY b.account_id
+        FOR UPDATE OF b
     """, account_ids)
 
     if len(rows) != 2:
         raise AccountNotFoundError()
 
-    balances = {str(row["account_id"]): row["balance_minor"] for row in rows}
+    balances = {str(row["account_id"]): row["available_balance_minor"] for row in rows}
     if balances[data.from_account_id] < data.amount_minor:
         raise InsufficientFundsError()
 
@@ -244,8 +312,28 @@ async def _execute_transfer(conn: asyncpg.Connection, data: TransferCreate) -> T
     )
 
 
-async def create_transfer(conn: asyncpg.Connection, data: TransferCreate, client_id: str, idempotency_key: str) -> TransactionResponse:
-    return await _run_idempotent(conn, client_id, idempotency_key, "transfer", data, lambda c: _execute_transfer(c, data))
+async def create_transfer(
+    conn: asyncpg.Connection,
+    data: TransferCreate,
+    client_id: str,
+    idempotency_key: str,
+    correlation_id: str = "",
+) -> TransactionResponse:
+    async def execute(risk_conn):
+        await evaluate_risk(
+            risk_conn,
+            transaction_type="transfer",
+            account_ids=[data.from_account_id, data.to_account_id],
+            amount_minor=data.amount_minor,
+            client_scope=client_id,
+            idempotency_key=idempotency_key,
+            correlation_id=correlation_id,
+        )
+        return await _execute_transfer(risk_conn, data)
+
+    return await _run_idempotent(
+        conn, client_id, idempotency_key, "transfer", data, execute, correlation_id
+    )
 
 
 def _original_delta(transaction_type: str, side: str, amount: int) -> int:
@@ -257,9 +345,11 @@ def _original_delta(transaction_type: str, side: str, amount: int) -> int:
     raise CannotReverseReversalError()
 
 
+@tracer.start_as_current_span("ledger.reversal.postings_and_balances")
 async def _execute_reversal(conn: asyncpg.Connection, original_transaction_id: str) -> TransactionResponse:
     original = await conn.fetchrow("""
-        SELECT transaction_id, type, state FROM transactions WHERE transaction_id = $1
+        SELECT transaction_id, type, state FROM transactions
+        WHERE transaction_id = $1 FOR UPDATE
     """, original_transaction_id)
 
     if original is None:
@@ -282,12 +372,20 @@ async def _execute_reversal(conn: asyncpg.Connection, original_transaction_id: s
 
     account_ids = sorted({str(p["account_id"]) for p in original_postings})
     balance_rows = await conn.fetch("""
-        SELECT account_id, balance_minor FROM balances
-        WHERE account_id = ANY($1::uuid[])
-        ORDER BY account_id
-        FOR UPDATE
+        SELECT b.account_id, b.balance_minor,
+               COALESCE((
+                   SELECT sum(h.amount_minor) FROM holds h
+                   WHERE h.account_id = b.account_id AND h.status = 'active'
+               ), 0) AS held_minor
+        FROM balances b
+        WHERE b.account_id = ANY($1::uuid[])
+        ORDER BY b.account_id
+        FOR UPDATE OF b
     """, account_ids)
-    current_balances = {str(row["account_id"]): row["balance_minor"] for row in balance_rows}
+    current_balances = {
+        str(row["account_id"]): (row["balance_minor"], row["held_minor"])
+        for row in balance_rows
+    }
 
     # Reversal undoes the original effect: new_side flips, and the balance
     # delta is the negation of whatever the original posting applied.
@@ -295,7 +393,8 @@ async def _execute_reversal(conn: asyncpg.Connection, original_transaction_id: s
     for posting in original_postings:
         account_id = str(posting["account_id"])
         reversal_delta = -_original_delta(original["type"], posting["side"], posting["amount_minor"])
-        if current_balances[account_id] + reversal_delta < 0:
+        current_balance, held_minor = current_balances[account_id]
+        if current_balance - held_minor + reversal_delta < 0:
             raise InsufficientFundsError()
         new_side = "credit" if posting["side"] == "debit" else "debit"
         reversal_postings.append({
@@ -335,5 +434,19 @@ async def _execute_reversal(conn: asyncpg.Connection, original_transaction_id: s
     )
 
 
-async def create_reversal(conn: asyncpg.Connection, data: ReversalCreate, client_id: str, idempotency_key: str) -> TransactionResponse:
-    return await _run_idempotent(conn, client_id, idempotency_key, "reversal", data, lambda c: _execute_reversal(c, data.transaction_id))
+async def create_reversal(
+    conn: asyncpg.Connection,
+    data: ReversalCreate,
+    client_id: str,
+    idempotency_key: str,
+    correlation_id: str = "",
+) -> TransactionResponse:
+    return await _run_idempotent(
+        conn,
+        client_id,
+        idempotency_key,
+        "reversal",
+        data,
+        lambda c: _execute_reversal(c, data.transaction_id),
+        correlation_id,
+    )

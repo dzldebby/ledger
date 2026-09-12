@@ -2,7 +2,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from app.database import create_pool, close_pool
-from app.routers import accounts, admin, events, transactions
+from app.routers import accounts, admin, events, settlements, transactions
+from app.telemetry import configure_telemetry, instrument_app
+
+configure_telemetry("ledger-api")
 
 
 @asynccontextmanager
@@ -13,10 +16,12 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Ledger API", lifespan=lifespan)
+instrument_app(app)
 app.include_router(accounts.router)
 app.include_router(transactions.router)
 app.include_router(events.router)
 app.include_router(admin.router)
+app.include_router(settlements.router)
 app.mount("/ui", StaticFiles(directory="app/static", html=True), name="ui")
 
 

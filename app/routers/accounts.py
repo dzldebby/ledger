@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from app.database import get_conn
 from app.auth import get_authenticated_client
-from app.schemas.accounts import AccountCreate, AccountResponse, BalanceResponse
-from app.services.accounts import create_account, list_accounts, get_balance
+from app.schemas.accounts import AccountCreate, AccountHistoryResponse, AccountResponse, BalanceResponse
+from app.services.accounts import create_account, get_balance, get_history, list_accounts
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 
@@ -34,3 +34,16 @@ async def get_balance_endpoint(
     if balance is None:
         raise HTTPException(status_code=404, detail="Account not found")
     return balance
+
+
+@router.get("/{account_id}/transactions", response_model=AccountHistoryResponse)
+async def get_account_history_endpoint(
+    account_id: str,
+    limit: int = 100,
+    client_id: str = Depends(get_authenticated_client),
+    conn=Depends(get_conn),
+):
+    history = await get_history(conn, account_id, max(1, min(limit, 1000)))
+    if history is None:
+        raise HTTPException(status_code=404, detail="Account not found")
+    return history

@@ -40,10 +40,6 @@ def _run_migrations():
     command.upgrade(cfg, "head")
 
 
-_ensure_test_database_exists()
-_run_migrations()
-
-
 def provision_api_client(client_id: str) -> str:
     """Inserts (or refreshes) an api_clients row and returns the plaintext key."""
     api_key = generate_api_key()
@@ -92,6 +88,8 @@ def db_execute(sql, params=None):
 
 @pytest.fixture(scope="session")
 def client():
+    _ensure_test_database_exists()
+    _run_migrations()
     api_key = provision_api_client("test-client")
     with TestClient(app) as c:
         c.headers["X-API-Key"] = api_key
