@@ -1,0 +1,79 @@
+DATA PRODUCTS	Phone: +65 97335243 | Email: debby.lingzl@gmail.com
+Portfolio: debbyling.site
+Linkedin: linkedin.com/in/debby-ling/
+Github: github.com/dzldebby
+DEBBY LING	
+
+DATA ENGINEERING & AI
+Data Engineering & Products Lead with 10+ years spanning data products, cloud architecture, and research consultancy. I experiment rapidly, build end-to-end, and ship products that solve real problems. At PSD, I own both data engineering and data products, building the infrastructure and the AI-powered tools that sit on top of it. Previously built a data analytics consulting practice from scratch at Kantar Public, growing the team to 4. 
+
+WORK EXPERIENCE
+LEAD ANALYST (DATA ENGINEERING & DATA PRODUCTS), DATA OFFICE – Public Service Division – Feb’24 to Present
+ Building the data foundation for public service transformation
+•	Dual role spanning both Data Engineering and Data Products, owning the full lifecycle from problem discovery and ETL pipelines to AI-powered tools and stakeholder-facing dashboards
+•	Owned and drove the end-to-end delivery of a production-mirrored AWS workspace environment, enabling the Data Engineering team to experiment, prototype, and run complex glue jobs against production data without risking the stability of live systems
+•	Prototyped an air-gapped Text-to-SQL-to-Chart engine powered by LLM, enabling non-technical stakeholders to query database in natural language
+•	Reduced dashboard refresh time by 94% (from 3 hours to 10 minutes) by replacing error-prone manual Excel workflows with a fully automated AWS Glue pipeline.
+•	Led hands-on capability building for agency data officers on AWS infrastructure and SQL performance tuning
+
+SENIOR CONSULTANT, DATA ANALYTICS – Kantar Public– Apr ’20 to Feb’24
+Embedding with government agencies to deliver data solutions
+•	Built and scaled a data consulting practice from the ground up, scoping client engagements, leading delivery, growing the team to 4, and embedding with clients across government, social services, and housing sectors
+•	Led strategic presentations for senior government clients, translating complex analytical findings into actionable recommendations
+•	Designed text processing pipeline to analyze large corpus of policy documents using Python and OpenAI's API, processing 30+ years of speech transcripts with results featured in Today newspaper commentary
+•	Designed and shipped a data monitoring product for a S$580M social service fund evaluation, including automated alerts that drove 94% above-target response rates
+•	Identified 30 hours of monthly manual reporting waste, then designed and shipped a suite of automation tools  (charting, monitoring dashboards, and email generation) eliminating the bottleneck entirely
+
+SENIOR ANALYST – SKIM – Apr ’18 to Apr ’20
+Translating complex data into actionable business strategies 
+•	Built predictive models through conjoint study outputs to create simulations for the optimal pricing of products in a range of industries including FMCG, Technology, and Food & Beverage
+•	Won the Young ESOMAR Award 2019. Pitched the innovative idea of using conjoint to quantify the utility of social media reactions, to over 1,000 delegates at the Congress and was selected by popular vote
+•	Selected for exclusive 6 months secondment to HQ in Netherlands as a high-potential employee
+
+MANAGER, MANAGEMENT INFORMATION & ANALYTICS – Skillsfuture Singapore – Jul ’16 to Apr ’18
+Driving data-driven policy making 
+•	Designed and scaled a comprehensive rolling survey system across 50 areas of training (10,000+ responses), applying A/B testing with the Behavioural Insight Team's EAST Framework to improve response rates by 21%
+
+SENIOR RESEARCH ANALYST – Blackbox Research– Jul ’14 to Jul ’16
+Hybrid qualitative and quantitative researcher
+•	Promoted within the 1st year of service to Senior Research Analyst; independently managed research projects of up to $2 million on all aspects, including the Lien Foundation Inclusive Attitudes Study which kickstarted the discussion of inclusive education in Singapore.  
+•	200+ hours moderating focus groups and in-depth interviews including those with vulnerable populations
+
+SKILLS
+DATA ENGINEERING: AWS (Glue, S3, Lambda, Athena), Databricks, Delta Lake, Delta Live Tables, PySpark, Apache Spark, Medallion Architecture, ETL/ELT Pipeline Design, PostgreSQL, MSSQL
+PROGRAMMING & DEVOPS: Python, SQL, PySpark, R, Git, CI/CD, Docker, HTML, CSS, JS
+AI & ML: LLM, TensorFlow, PyTorch, Regression, Forecasting, Time Series Analysis, Neural Networks, Structured Equation Modelling, A/B Testing, Network Analytics 
+DATA GOVERNANCE: Data Quality Frameworks, Schema Validation, Lineage Tracking, Access Controls, Data Modelling
+
+EDUCATION & CERTIFICATES 
+EDUCATION
+•	Masters of Science in Computational Data Analytics (GPA:4.0/4.0) - Georgia Institute of Technology
+•	Bachelor in Communication Research (First Class Honors, Dean’s List) - Nanyang Technological University
+
+CERTIFICATES
+•	Databricks Certified Data Engineer Associate (Link to credential) 
+•	AWS Certified Solutions Architect Associate (Link to credential)
+•	AWS Certified Data Engineer Associate (Link to credential) 
+•	Microsoft Certified: Power BI Data Analyst Associate  (Link to credential)
+•	Microsoft Certified: Azure Data Engineer (Link to credential)
+•	Scrum Alliance Certified Scrum Product Owner® (Link to credential)
+
+AWARDS
+GovTech X AWS AI League 2025 2nd Place Winner
+•	Won 2nd place in the inaugural GovTech X AWS AI League competition, outcompeting 600+ participants in LLM fine-tuning using AWS Sagemaker 
+Build For Good Hackathon 2024 Winner (Link to Straits Times feature)
+•	Led data architecture and analytics for winning IoT-based senior care monitoring solution, from concept to working prototype
+•	Validated product-market fit through user research and stakeholder interviews; featured in The Straits Times
+GovTech Data & AI Tournament 2024 Winner
+•	Won Data & AI Tournament 2024 tournament with interactive Tableau dashboard analyzing MRT connectivity and real estate trends
+Young ESOMAR Society Award Winner
+•	Won prestigious industry award at ESOMAR Congress for innovative research quantifying social media engagement using discrete choice modelling
+•	Selected by popular vote among 1,000+ global delegates after presenting methodology for measuring emotional impact of digital reactions
+
+COMMUNITY INVOLVEMENT 
+Singapore University of Social Science (2022 – Current)
+•	Programme Advisory Chairperson, Graduate Diploma in Analytics & Visualisation
+
+SIDE PROJECTS
+SenseCheck (sensecheck.vercel.app) 
+•	Built SenseCheck: An AI product that stress-tests draft communications against 148,000 demographically grounded Singapore personas, identifying problematic phrases and suggesting rewrites. Designed end-to-end from user problem to working product, drawing on 6 years of message testing experience. 
